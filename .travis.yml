@@ -27,10 +27,11 @@ addons:
   postgresql: "9.3"
 
 env:
-- PGUSER=postgres
-- PGDATABASE=travis_ci_test
-- GITHUB_OAUTH_CLIENT_ID=not_tested_yet
-- GITHUB_OAUTH_CLIENT_SECRET=not_tested_yet
+  global:
+    - PGUSER=postgres
+    - PGDATABASE=travis_ci_test
+    - GITHUB_OAUTH_CLIENT_ID=not_tested_yet
+    - GITHUB_OAUTH_CLIENT_SECRET=not_tested_yet
 
 services:
 - postgresql
