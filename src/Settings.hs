@@ -64,6 +64,13 @@ data AppSettings = AppSettings
     -- ^ Indicate if auth dummy login should be enabled.
     }
 
+
+data OAuthKeys = OAuthKeys
+    { oauthKeysClientId :: Text
+    , oauthKeysClientSecret :: Text
+    }
+
+
 instance FromJSON AppSettings where
     parseJSON = withObject "AppSettings" $ \o -> do
         let defaultDev =

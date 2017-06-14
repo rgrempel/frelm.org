@@ -36,7 +36,8 @@ import Network.Wai.Middleware.RequestLogger (Destination (Logger),
 import System.Log.FastLogger                (defaultBufSize, newStdoutLoggerSet,
                                              toLogStr)
 
-import LoadEnv
+import LoadEnv (loadEnv)
+import System.Environment (getEnv)
 
 -- Import all relevant handler modules here.
 -- Don't forget to add new modules to your cabal file!
@@ -64,6 +65,8 @@ makeFoundation appSettings = do
         (if appMutableStatic appSettings then staticDevel else static)
         (appStaticDir appSettings)
 
+    appGithubOAuthKeys <- getOAuthKeys
+
     -- We need a log function to create a connection pool. We need a connection
     -- pool to create our foundation. And we need our foundation to get a
     -- logging function. To get out of this loop, we initially create a
@@ -86,6 +89,14 @@ makeFoundation appSettings = do
 
     -- Return the foundation
     return $ mkFoundation pool
+
+
+getOAuthKeys :: IO OAuthKeys
+getOAuthKeys =
+    OAuthKeys
+        <$> (pack <$> getEnv "GITHUB_OAUTH_CLIENT_ID")
+        <*> (pack <$> getEnv "GITHUB_OAUTH_CLIENT_SECRET")
+
 
 -- | Convert our foundation to a WAI Application by calling @toWaiAppPlain@ and
 -- applying some additional middlewares.
