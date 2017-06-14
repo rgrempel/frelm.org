@@ -6,6 +6,6 @@ database:
   # something like:
   #
   #   database: "_env:PGDATABASE:frelm-packages_LOWER_test"
-  database: frelm-packages_LOWER_test
+  database: frelm_test
 
 auth-dummy-login: true
