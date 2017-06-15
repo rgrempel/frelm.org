@@ -1,10 +1,12 @@
 User
     name Text
     email Text
+    avatarUrl Text Maybe
     plugin Text
     ident Text
     UniqueUser plugin ident
     deriving Eq Show Typeable
+
 Comment json -- Adding "json" causes ToJSON and FromJSON instances to be derived.
     message Text
     userId UserId Maybe

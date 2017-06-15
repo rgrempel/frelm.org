@@ -86,4 +86,5 @@ createUser ident = do
         , userEmail = "dummy@email.com"
         , userPlugin = "test"
         , userName = "Test User"
+        , userAvatarUrl = Nothing
         }

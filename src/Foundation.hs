@@ -190,14 +190,19 @@ instance YesodBreadcrumbs App where
   breadcrumb ProfileR = return ("Profile", Just HomeR)
   breadcrumb  _ = return ("home", Nothing)
 
+
 -- How to run database actions.
 instance YesodPersist App where
     type YesodPersistBackend App = SqlBackend
     runDB action = do
         master <- getYesod
         runSqlPool action $ appConnPool master
+
+
 instance YesodPersistRunner App where
-    getDBRunner = defaultGetDBRunner appConnPool
+    getDBRunner =
+        defaultGetDBRunner appConnPool
+
 
 instance YesodAuth App where
     type AuthId App = UserId
@@ -257,12 +262,14 @@ credsToUser Creds{..} =
                 , userEmail = "none@none.com"
                 , userPlugin = credsPlugin
                 , userIdent = credsIdent
+                , userAvatarUrl = Nothing
                 }
     else
         -- For Github and others, we require the name and email
         User
             <$> lookup "name" credsExtra
             <*> lookup "email" credsExtra
+            <*> pure (lookup "avatar_url" credsExtra)
             <*> pure credsPlugin
             <*> pure credsIdent
 
@@ -279,6 +286,9 @@ credsToUserUpdate creds =
 
                 "email" ->
                     Just $ UserEmail =. value
+
+                "avatar_url" ->
+                    Just $ UserAvatarUrl =. Just value
 
                 _ ->
                     Nothing
