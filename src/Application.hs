@@ -65,7 +65,8 @@ makeFoundation appSettings = do
         (if appMutableStatic appSettings then staticDevel else static)
         (appStaticDir appSettings)
 
-    appGithubOAuthKeys <- getOAuthKeys
+    appGithubOAuthKeys <- getGithubOAuthKeys
+    appGitlabOAuthKeys <- getGitlabOAuthKeys
 
     -- We need a log function to create a connection pool. We need a connection
     -- pool to create our foundation. And we need our foundation to get a
@@ -91,11 +92,18 @@ makeFoundation appSettings = do
     return $ mkFoundation pool
 
 
-getOAuthKeys :: IO OAuthKeys
-getOAuthKeys =
+getGithubOAuthKeys :: IO OAuthKeys
+getGithubOAuthKeys =
     OAuthKeys
         <$> (pack <$> getEnv "GITHUB_OAUTH_CLIENT_ID")
         <*> (pack <$> getEnv "GITHUB_OAUTH_CLIENT_SECRET")
+
+
+getGitlabOAuthKeys :: IO OAuthKeys
+getGitlabOAuthKeys =
+    OAuthKeys
+        <$> (pack <$> getEnv "GITLAB_OAUTH_CLIENT_ID")
+        <*> (pack <$> getEnv "GITLAB_OAUTH_CLIENT_SECRET")
 
 
 -- | Convert our foundation to a WAI Application by calling @toWaiAppPlain@ and

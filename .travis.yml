@@ -32,6 +32,8 @@ env:
     - PG_TEST_DATABASE=travis_ci_test
     - GITHUB_OAUTH_CLIENT_ID=not_tested_yet
     - GITHUB_OAUTH_CLIENT_SECRET=not_tested_yet
+    - GITLAB_OAUTH_CLIENT_ID=not_tested
+    - GITLAB_OAUTH_CLIENT_SECRET=not_tested
 
 services:
 - postgresql

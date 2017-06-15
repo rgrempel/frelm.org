@@ -15,6 +15,7 @@ import Text.Jasmine         (minifym)
 import Yesod.Auth.Dummy
 
 import Yesod.Auth.OAuth2.Github
+import Yesod.Auth.OAuth2.Gitlab
 
 import Yesod.Default.Util   (addStaticContentExternal)
 import Yesod.Core.Types     (Logger)
@@ -33,6 +34,7 @@ data App = App
     , appHttpManager :: Manager
     , appLogger      :: Logger
     , appGithubOAuthKeys :: OAuthKeys
+    , appGitlabOAuthKeys :: OAuthKeys
     }
 
 data MenuItem = MenuItem
@@ -245,12 +247,18 @@ instance YesodAuth App where
         [ oauth2Github
             (oauthKeysClientId $ appGithubOAuthKeys app)
             (oauthKeysClientSecret $ appGithubOAuthKeys app)
+        , oauth2Gitlab
+            (oauthKeysClientId $ appGitlabOAuthKeys app)
+            (oauthKeysClientSecret $ appGitlabOAuthKeys app)
         ] ++ extraAuthPlugins
 
         -- Enable authDummy login if enabled.
-        where extraAuthPlugins = [authDummy | appAuthDummyLogin $ appSettings app]
+        where
+            extraAuthPlugins =
+                [authDummy | appAuthDummyLogin $ appSettings app]
 
-    authHttpManager = getHttpManager
+    authHttpManager =
+        getHttpManager
 
 
 credsToUser :: Creds m -> Maybe User
