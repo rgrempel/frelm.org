@@ -18,6 +18,7 @@ import Yesod.Default.Config2 (useEnv, loadYamlSettings)
 import Yesod.Auth            as X
 import Yesod.Test            as X
 import Yesod.Core.Unsafe     (fakeHandlerGetLogger)
+import LoadEnv (loadEnvFrom)
 
 runDB :: SqlPersistM a -> YesodExample App a
 runDB query = do
@@ -35,6 +36,7 @@ runHandler handler = do
 
 withApp :: SpecWith (TestApp App) -> Spec
 withApp = before $ do
+    loadEnvFrom "./.env-test"
     settings <- loadYamlSettings
         ["config/test-settings.yml", "config/settings.yml"]
         []
@@ -81,5 +83,7 @@ createUser :: Text -> YesodExample App (Entity User)
 createUser ident = do
     runDB $ insertEntity User
         { userIdent = ident
-        , userPassword = Nothing
+        , userEmail = "dummy@email.com"
+        , userPlugin = "test"
+        , userName = "Test User"
         }

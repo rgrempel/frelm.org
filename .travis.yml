@@ -29,7 +29,7 @@ addons:
 env:
   global:
     - PGUSER=postgres
-    - PGDATABASE=travis_ci_test
+    - PG_TEST_DATABASE=travis_ci_test
     - GITHUB_OAUTH_CLIENT_ID=not_tested_yet
     - GITHUB_OAUTH_CLIENT_SECRET=not_tested_yet
 

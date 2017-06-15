@@ -3,6 +3,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE RecordWildCards #-}
 module Foundation where
 
 import Import.NoFoundation
@@ -209,13 +210,30 @@ instance YesodAuth App where
     redirectToReferer _ = True
 
     authenticate creds = runDB $ do
-        x <- getBy $ UniqueUser $ credsIdent creds
+        x <-
+            getBy $
+                UniqueUser
+                    (credsPlugin creds)
+                    (credsIdent creds)
+
         case x of
-            Just (Entity uid _) -> return $ Authenticated uid
-            Nothing -> Authenticated <$> insert User
-                { userIdent = credsIdent creds
-                , userPassword = Nothing
-                }
+            Just (Entity uid _) -> do
+                update uid $
+                    credsToUserUpdate creds
+
+                return $
+                    Authenticated uid
+
+            Nothing ->
+                case credsToUser creds of
+                    Just user ->
+                        Authenticated <$>
+                            insert user
+
+                    Nothing ->
+                        return $
+                            ServerError "Name or email was not provided."
+
 
     -- You can add other plugins like Google Email, email or OAuth here
     authPlugins app =
@@ -228,6 +246,43 @@ instance YesodAuth App where
         where extraAuthPlugins = [authDummy | appAuthDummyLogin $ appSettings app]
 
     authHttpManager = getHttpManager
+
+
+credsToUser :: Creds m -> Maybe User
+credsToUser Creds{..} =
+    if credsPlugin == "dummy" then
+        Just $
+            User
+                { userName = "Dummy"
+                , userEmail = "none@none.com"
+                , userPlugin = credsPlugin
+                , userIdent = credsIdent
+                }
+    else
+        -- For Github and others, we require the name and email
+        User
+            <$> lookup "name" credsExtra
+            <*> lookup "email" credsExtra
+            <*> pure credsPlugin
+            <*> pure credsIdent
+
+
+credsToUserUpdate :: Creds m -> [Update User]
+credsToUserUpdate creds =
+    catMaybes $ considerExtra <$> credsExtra creds
+
+    where
+        considerExtra (key, value) =
+            case key of
+                "name" ->
+                    Just $ UserName =. value
+
+                "email" ->
+                    Just $ UserEmail =. value
+
+                _ ->
+                    Nothing
+
 
 -- | Access function to determine if a user is logged in.
 isAuthenticated :: Handler AuthResult
