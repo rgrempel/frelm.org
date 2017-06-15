@@ -44,7 +44,7 @@ before_install:
 
 install:
 # Build dependencies
-- stack --no-terminal --install-ghc test --only-dependencies
+- stack -j 1 --no-terminal --install-ghc test --only-dependencies
 
 before_script:
 - psql -c "create database travis_ci_test encoding 'utf8';" -U postgres
