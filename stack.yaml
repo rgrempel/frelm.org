@@ -44,6 +44,7 @@ packages:
 # (e.g., acme-missiles-0.3)
 extra-deps:
 - classy-prelude-yesod-1.1.0
+- postgresql-simple-migration-0.1.9.0
 
 # Override default flag values for local packages and extra-deps
 flags: {}

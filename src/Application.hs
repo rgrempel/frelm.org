@@ -43,7 +43,7 @@ import System.Environment (getEnv)
 -- Don't forget to add new modules to your cabal file!
 import Handler.Common
 import Handler.Home
-import Handler.Comment
+import Handler.Submission
 import Handler.Profile
 
 -- This line actually creates our YesodDispatch instance. It is the second half

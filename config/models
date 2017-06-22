@@ -7,10 +7,8 @@ User
     UniqueUser plugin ident
     deriving Eq Show Typeable
 
-Comment json -- Adding "json" causes ToJSON and FromJSON instances to be derived.
-    message Text
-    userId UserId Maybe
-    deriving Eq
-    deriving Show
-
- -- By default this file is used in Model.hs (which is imported by Foundation.hs)
+Submission json
+    source Text
+    submittedBy UserId
+    UniqueSubmission source
+    deriving Eq Show
