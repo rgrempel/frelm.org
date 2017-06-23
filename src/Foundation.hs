@@ -86,9 +86,9 @@ instance Yesod App where
     makeSessionBackend _ =
         -- sslOnlySessions $ -- TODO: Add this in a way that works nicely with yesod devel
             fmap Just $
-                defaultClientSessionBackend
+                envClientSessionBackend
                     sessionTimeout    -- timeout in minutes
-                    "config/client_session_key.aes"
+                    "CLIENT_SESSION_KEY"
 
     -- Yesod Middleware allows you to run code before and after each handler function.
     -- The defaultYesodMiddleware adds the response header "Vary: Accept, Accept-Language" and performs authorization checks.
