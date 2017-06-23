@@ -26,7 +26,7 @@ getSubmissionR :: Handler Html
 getSubmissionR = do
     (widget, enctype) <-
         generateFormPost submissionForm
-    
+
     defaultLayout
         [whamlet|
             <p>Submit a GIT URL
@@ -40,16 +40,26 @@ postSubmissionR :: Handler Html
 postSubmissionR = do
     ((result, widget), enctype) <-
         runFormPost submissionForm
-    
+
     case result of
-        FormSuccess submission -> do
-            setMessage $ toHtml ("Success" ++ show submission)
+        FormSuccess submittedForm -> do
+            currentUser <- requireAuthId
+
+            let submission =
+                    Submission
+                        { submissionSource = source submittedForm
+                        , submissionSubmittedBy = currentUser
+                        }
+
+            runDB (insert submission)
+
+            setMessage $ toHtml ("Submission saved" :: Text)
             redirect SubmissionR
 
         FormMissing -> do
             setMessage $ toHtml ("Form data was missing" :: Text )
             redirect SubmissionR
-        
+
         FormFailure err -> do
             setMessage $ toHtml ("Invalid input, let's try again" :: Text)
             redirect SubmissionR
