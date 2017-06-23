@@ -22,22 +22,30 @@ submissionForm =
         <$> areq textField "Git URL" Nothing
 
 
-getSubmissionR :: Handler Html
-getSubmissionR = do
+getSubmissionR :: SubmissionId -> Handler Html
+getSubmissionR id =
+    defaultLayout
+        [whamlet|
+            <p>A submission page
+        |]
+
+
+getSubmissionsR :: Handler Html
+getSubmissionsR = do
     (widget, enctype) <-
         generateFormPost submissionForm
 
     defaultLayout
         [whamlet|
             <p>Submit a GIT URL
-                <form method=post action=@{SubmissionR} enctype=#{enctype}>
+                <form method=post action=@{SubmissionsR} enctype=#{enctype}>
                     ^{widget}
                     <button>Submit
         |]
 
 
-postSubmissionR :: Handler Html
-postSubmissionR = do
+postSubmissionsR :: Handler Html
+postSubmissionsR = do
     ((result, widget), enctype) <-
         runFormPost submissionForm
 
@@ -51,15 +59,19 @@ postSubmissionR = do
                         , submissionSubmittedBy = currentUser
                         }
 
-            runDB (insert submission)
+            submissionId <-
+                runDB (insert submission)
 
-            setMessage $ toHtml ("Submission saved" :: Text)
-            redirect SubmissionR
+            setMessage $
+                toHtml ("Submission saved" :: Text)
+
+            redirect $
+                SubmissionR submissionId
 
         FormMissing -> do
             setMessage $ toHtml ("Form data was missing" :: Text )
-            redirect SubmissionR
+            redirect SubmissionsR
 
         FormFailure err -> do
             setMessage $ toHtml ("Invalid input, let's try again" :: Text)
-            redirect SubmissionR
+            redirect SubmissionsR

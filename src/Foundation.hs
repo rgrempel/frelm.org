@@ -4,6 +4,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ViewPatterns #-}
 module Foundation where
 
 import Import.NoFoundation
@@ -122,7 +123,7 @@ instance Yesod App where
                     }
                 , NavbarLeft $ MenuItem
                     { menuItemLabel = "Submit"
-                    , menuItemRoute = SubmissionR
+                    , menuItemRoute = SubmissionsR
                     , menuItemAccessCallback = isJust muser
                     }
                 , NavbarLeft $ MenuItem
@@ -171,8 +172,19 @@ instance Yesod App where
     isAuthorized RobotsR _ = return Authorized
     isAuthorized (StaticR _) _ = return Authorized
 
-    isAuthorized SubmissionR _ = isAuthenticated
     isAuthorized ProfileR _ = isAuthenticated
+
+    isAuthorized (SubmissionR _) write =
+        if write then
+            isAuthenticated
+        else
+            return Authorized
+
+    isAuthorized SubmissionsR write =
+        if write then
+            isAuthenticated
+        else
+            return Authorized
 
 
     -- This function creates static content files in the static folder

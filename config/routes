@@ -6,6 +6,7 @@
 
 / HomeR GET
 
-/submissions SubmissionR GET POST
+/submission SubmissionsR GET POST
+/submission/#SubmissionId SubmissionR GET
 
 /profile ProfileR GET
