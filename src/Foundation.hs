@@ -64,6 +64,13 @@ mkYesodData "App" $(parseRoutesFile "config/routes")
 -- | A convenient synonym for creating forms.
 type Form x = Html -> MForm (HandlerT App IO) (FormResult x, Widget)
 
+
+-- Session timeout in minutes
+sessionTimeout :: Int
+sessionTimeout = 120
+
+
+
 -- Please see the documentation for the Yesod typeclass. There are a number
 -- of settings which can be configured by overriding methods here.
 instance Yesod App where
@@ -76,9 +83,12 @@ instance Yesod App where
 
     -- Store session data on the client in encrypted cookies,
     -- default session idle timeout is 120 minutes
-    makeSessionBackend _ = Just <$> defaultClientSessionBackend
-        120    -- timeout in minutes
-        "config/client_session_key.aes"
+    makeSessionBackend _ =
+        -- sslOnlySessions $ -- TODO: Add this in a way that works nicely with yesod devel
+            fmap Just $
+                defaultClientSessionBackend
+                    sessionTimeout    -- timeout in minutes
+                    "config/client_session_key.aes"
 
     -- Yesod Middleware allows you to run code before and after each handler function.
     -- The defaultYesodMiddleware adds the response header "Vary: Accept, Accept-Language" and performs authorization checks.
@@ -87,7 +97,11 @@ instance Yesod App where
     --   b) Validates that incoming write requests include that token in either a header or POST parameter.
     -- To add it, chain it together with the defaultMiddleware: yesodMiddleware = defaultYesodMiddleware . defaultCsrfMiddleware
     -- For details, see the CSRF documentation in the Yesod.Core.Handler module of the yesod-core package.
-    yesodMiddleware = defaultYesodMiddleware
+    yesodMiddleware =
+        defaultYesodMiddleware
+            -- TODO: Add these in
+            -- . (sslOnlyMiddleware sessionTimeout)
+            -- . defaultCsrfMiddleware
 
     defaultLayout widget = do
         master <- getYesod
