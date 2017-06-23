@@ -19,7 +19,7 @@ data SubmissionForm = SubmissionForm
 submissionForm :: Html -> MForm Handler (FormResult SubmissionForm, Widget)
 submissionForm =
     renderDivs $ SubmissionForm
-        <$> areq urlField "Git URL" Nothing
+        <$> areq textField "Git URL" Nothing
 
 
 getSubmissionR :: Handler Html
@@ -42,24 +42,14 @@ postSubmissionR = do
         runFormPost submissionForm
     
     case result of
-        FormSuccess submission ->
-            defaultLayout [whamlet|<p>#{show submission}|]
+        FormSuccess submission -> do
+            setMessage $ toHtml ("Success" ++ show submission)
+            redirect SubmissionR
 
-        FormMissing ->
-            defaultLayout
-                [whamlet|
-                    <p>Missing input.
-                    <form method=post action=@{SubmissionR} enctype=#{enctype}>
-                        ^{widget}
-                        <button>Submit
-                |]
+        FormMissing -> do
+            setMessage $ toHtml ("Form data was missing" :: Text )
+            redirect SubmissionR
         
-        FormFailure err ->
-            defaultLayout
-                [whamlet|
-                    <p>Invalid input, let's try again.
-                    <p>#{show err}
-                    <form method=post action=@{SubmissionR} enctype=#{enctype}>
-                        ^{widget}
-                        <button>Submit
-                |]
+        FormFailure err -> do
+            setMessage $ toHtml ("Invalid input, let's try again" :: Text)
+            redirect SubmissionR
