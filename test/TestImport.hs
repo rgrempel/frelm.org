@@ -63,7 +63,8 @@ getTables = do
     tables <- rawSql [st|
         SELECT table_name
         FROM information_schema.tables
-        WHERE table_schema = 'public';
+        WHERE table_schema = 'public'
+        AND table_name <> 'schema_migrations';
     |] []
 
     return $ map unSingle tables
