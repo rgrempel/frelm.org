@@ -23,10 +23,13 @@ submissionForm =
 
 
 getSubmissionR :: SubmissionId -> Handler Html
-getSubmissionR id =
+getSubmissionR submissionId = do
+    submission <-
+        runDB $ get404 submissionId
+
     defaultLayout
         [whamlet|
-            <p>A submission page
+            <pre>#{show submission}
         |]
 
 
@@ -35,12 +38,20 @@ getSubmissionsR = do
     (widget, enctype) <-
         generateFormPost submissionForm
 
+    submissions <-
+        runDB $ selectList [] []
+
     defaultLayout
         [whamlet|
             <p>Submit a GIT URL
                 <form method=post action=@{SubmissionsR} enctype=#{enctype}>
                     ^{widget}
                     <button>Submit
+
+            <h4>Submissions
+                $forall Entity submissionId submission <- submissions
+                    <div>
+                        <a href=@{SubmissionR submissionId}>#{submissionSource submission}
         |]
 
 
