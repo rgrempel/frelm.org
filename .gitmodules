@@ -1,0 +1,3 @@
+[submodule "vendor/pg-semver"]
+	path = vendor/pg-semver
+	url = https://github.com/theory/pg-semver
