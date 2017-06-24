@@ -8,6 +8,7 @@
 module Handler.Repo where
 
 import Import
+import System.Process (readProcessWithExitCode)
 
 
 data SubmissionForm = SubmissionForm
@@ -94,13 +95,27 @@ postReposR = do
             redirect ReposR
 
 
+{- This is a Restful URL where we'd ordinarily post to create a
+ - new version for the repo. But, we don't want to do that manually,
+ - so we'll use it to ask the system to check for versions.
+ -}
 postRepoVersionsR :: RepoId -> Handler Html
 postRepoVersionsR repoId = do
     repo <-
         runDB $ get404 repoId
 
-    setMessage $
-        toHtml ("Checked versions" :: Text)
+    ( exitCode, stdOut, stdErr ) <-
+        liftIO $
+            readProcessWithExitCode "git"
+                [ "ls-remote"
+                , "--tags"
+                , "--quiet"
+                , unpack $ repoGitUrl repo
+                ]
+                ""
+
+    setMessage $ toHtml $
+        "Checked versions: Here's what I got: <pre>" ++ stdOut ++ "</pre>"
 
     redirect $
         RepoR repoId
