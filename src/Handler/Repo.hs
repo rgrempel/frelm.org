@@ -5,13 +5,13 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Handler.Submission where
+module Handler.Repo where
 
 import Import
 
 
 data SubmissionForm = SubmissionForm
-    { source :: Text
+    { gitUrl :: Text
     } deriving Show
 
 
@@ -22,67 +22,71 @@ submissionForm =
         <$> areq textField "Git URL" Nothing
 
 
-getSubmissionR :: SubmissionId -> Handler Html
-getSubmissionR submissionId = do
-    submission <-
-        runDB $ get404 submissionId
+getRepoR :: RepoId -> Handler Html
+getRepoR repoId = do
+    repo <-
+        runDB $ get404 repoId
 
     defaultLayout
         [whamlet|
-            <pre>#{show submission}
+            <pre>#{show repo}
         |]
 
 
-getSubmissionsR :: Handler Html
-getSubmissionsR = do
+getReposR :: Handler Html
+getReposR = do
     (widget, enctype) <-
         generateFormPost submissionForm
 
-    submissions <-
+    repos <-
         runDB $ selectList [] []
 
     defaultLayout
         [whamlet|
             <p>Submit a GIT URL
-                <form method=post action=@{SubmissionsR} enctype=#{enctype}>
+                <form method=post action=@{ReposR} enctype=#{enctype}>
                     ^{widget}
                     <button>Submit
 
-            <h4>Submissions
-                $forall Entity submissionId submission <- submissions
+            <h4>Repos
+                $forall Entity repoId repo <- repos
                     <div>
-                        <a href=@{SubmissionR submissionId}>#{submissionSource submission}
+                        <a href=@{RepoR repoId}>#{repoGitUrl repo}
         |]
 
 
-postSubmissionsR :: Handler Html
-postSubmissionsR = do
+postReposR :: Handler Html
+postReposR = do
     ((result, widget), enctype) <-
         runFormPost submissionForm
 
     case result of
         FormSuccess submittedForm -> do
-            currentUser <- requireAuthId
+            currentUser <-
+                requireAuthId
 
-            let submission =
-                    Submission
-                        { submissionSource = source submittedForm
-                        , submissionSubmittedBy = currentUser
-                        }
+            let
+                repo = Repo
+                    { repoGitUrl =
+                        gitUrl submittedForm
 
-            submissionId <-
-                runDB (insert submission)
+                    , repoSubmittedBy =
+                        Just currentUser
+                    }
+
+            repoId <-
+                runDB (insert repo)
 
             setMessage $
-                toHtml ("Submission saved" :: Text)
+                toHtml ("Repo saved" :: Text)
 
             redirect $
-                SubmissionR submissionId
+                RepoR repoId
 
         FormMissing -> do
             setMessage $ toHtml ("Form data was missing" :: Text )
-            redirect SubmissionsR
+            redirect ReposR
 
         FormFailure err -> do
             setMessage $ toHtml ("Invalid input, let's try again" :: Text)
-            redirect SubmissionsR
+            redirect ReposR

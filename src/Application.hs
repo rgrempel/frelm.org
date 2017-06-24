@@ -50,7 +50,7 @@ import System.Environment (getEnv)
 -- Don't forget to add new modules to your cabal file!
 import Handler.Common
 import Handler.Home
-import Handler.Submission
+import Handler.Repo
 import Handler.Profile
 
 -- This line actually creates our YesodDispatch instance. It is the second half
@@ -114,8 +114,8 @@ migrateSchema url = do
             SM.runMigrations True con $
                 [ MigrationInitialization
                 , migrateInitial
-                , migrateUsers
-                , migrateSubmissions
+                , createUsers
+                , createRepos
                 ]
 
     close con
@@ -125,83 +125,63 @@ migrateInitial :: MigrationCommand
 migrateInitial =
     MigrationScript "migrate-initial" $ encodeUtf8
         [text|
-            CREATE EXTENSION IF NOT EXISTS plpgsql WITH SCHEMA pg_catalog;
+            CREATE EXTENSION IF NOT EXISTS plpgsql
+                WITH SCHEMA pg_catalog;
         |]
 
 
-migrateUsers :: MigrationCommand
-migrateUsers =
-    MigrationScript "migrate-users" $ encodeUtf8
+createUsers :: MigrationCommand
+createUsers =
+    MigrationScript "create-users" $ encodeUtf8
         [text|
-            CREATE TABLE "user" (
-                id bigint NOT NULL,
-                name character varying NOT NULL,
-                email character varying NOT NULL,
-                plugin character varying NOT NULL,
-                ident character varying NOT NULL,
-                avatar_url character varying
-            );
+            CREATE TABLE users
+                ( id
+                    BIGSERIAL
+                    PRIMARY KEY
 
-            CREATE SEQUENCE user_id_seq
-                START WITH 1
-                INCREMENT BY 1
-                NO MINVALUE
-                NO MAXVALUE
-                CACHE 1;
+                , name
+                    VARCHAR
+                    NOT NULL
 
-            ALTER SEQUENCE user_id_seq
-                OWNED BY "user".id;
+                , email
+                    VARCHAR
+                    NOT NULL
 
-            ALTER TABLE ONLY "user"
-                ALTER COLUMN id
-                SET DEFAULT nextval('user_id_seq'::regclass);
+                , plugin
+                    VARCHAR
+                    NOT NULL
 
-            ALTER TABLE ONLY "user"
-                ADD CONSTRAINT unique_user
-                UNIQUE (plugin, ident);
+                , ident
+                    VARCHAR
+                    NOT NULL
 
-            ALTER TABLE ONLY "user"
-                ADD CONSTRAINT user_pkey
-                PRIMARY KEY (id);
+                , avatar_url
+                    VARCHAR
+
+                , CONSTRAINT users_unique
+                    UNIQUE (plugin, ident)
+                );
         |]
 
 
-migrateSubmissions :: MigrationCommand
-migrateSubmissions =
-    MigrationScript "migrate-submission" $ encodeUtf8
+createRepos :: MigrationCommand
+createRepos =
+    MigrationScript "create-repos" $ encodeUtf8
         [text|
-            CREATE TABLE submission (
-                id bigint NOT NULL,
-                source character varying NOT NULL,
-                submitted_by bigint NOT NULL
-            );
+            CREATE TABLE repos
+                ( id
+                    BIGSERIAL
+                    PRIMARY KEY
 
-            CREATE SEQUENCE submission_id_seq
-                START WITH 1
-                INCREMENT BY 1
-                NO MINVALUE
-                NO MAXVALUE
-                CACHE 1;
+                , git_url
+                    VARCHAR
+                    NOT NULL
+                    CONSTRAINT repos_unique_git_url UNIQUE
 
-            ALTER SEQUENCE submission_id_seq
-                OWNED BY submission.id;
-
-            ALTER TABLE ONLY submission
-                ALTER COLUMN id
-                SET DEFAULT nextval('submission_id_seq'::regclass);
-
-            ALTER TABLE ONLY submission
-                ADD CONSTRAINT submission_pkey
-                PRIMARY KEY (id);
-
-            ALTER TABLE ONLY submission
-                ADD CONSTRAINT unique_submission
-                UNIQUE (source);
-
-            ALTER TABLE ONLY submission
-                ADD CONSTRAINT submission_submitted_by_fkey
-                FOREIGN KEY (submitted_by)
-                REFERENCES "user"(id);
+                , submitted_by
+                    BIGINT
+                    CONSTRAINT repos_users_fk REFERENCES users
+                );
         |]
 
 

@@ -1,6 +1,6 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Handler.SubmissionSpec (spec) where
+module Handler.RepoSpec (spec) where
 
 import TestImport
 import Data.Aeson

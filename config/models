@@ -1,14 +1,16 @@
-User
+User sql=users
     name Text
     email Text
     avatarUrl Text Maybe
     plugin Text
     ident Text
+
     UniqueUser plugin ident
     deriving Eq Show Typeable
 
-Submission
-    source Text
-    submittedBy UserId
-    UniqueSubmission source
+Repo sql=repos
+    gitUrl Text
+    submittedBy UserId Maybe
+
+    UniqueRepo gitUrl
     deriving Eq Show

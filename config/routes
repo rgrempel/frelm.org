@@ -6,7 +6,7 @@
 
 / HomeR GET
 
-/submission SubmissionsR GET POST
-/submission/#SubmissionId SubmissionR GET
+/repo ReposR GET POST
+/repo/#RepoId RepoR GET
 
 /profile ProfileR GET

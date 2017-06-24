@@ -123,7 +123,7 @@ instance Yesod App where
                     }
                 , NavbarLeft $ MenuItem
                     { menuItemLabel = "Submit"
-                    , menuItemRoute = SubmissionsR
+                    , menuItemRoute = ReposR
                     , menuItemAccessCallback = isJust muser
                     }
                 , NavbarLeft $ MenuItem
@@ -174,13 +174,13 @@ instance Yesod App where
 
     isAuthorized ProfileR _ = isAuthenticated
 
-    isAuthorized (SubmissionR _) write =
+    isAuthorized (RepoR _) write =
         if write then
             isAuthenticated
         else
             return Authorized
 
-    isAuthorized SubmissionsR write =
+    isAuthorized ReposR write =
         if write then
             isAuthenticated
         else
