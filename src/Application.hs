@@ -116,6 +116,7 @@ migrateSchema url = do
                 , migrateInitial
                 , createUsers
                 , createRepos
+                , createRepoVersions
                 ]
 
     close con
@@ -181,6 +182,30 @@ createRepos =
                 , submitted_by
                     BIGINT
                     CONSTRAINT repos_users_fk REFERENCES users
+                );
+        |]
+
+
+createRepoVersions :: MigrationCommand
+createRepoVersions =
+    MigrationScript "create-repo-version" $ encodeUtf8
+        [text|
+            CREATE TABLE repo_version
+                ( id
+                    BIGSERIAL
+                    PRIMARY KEY
+
+                , repo
+                    BIGINT
+                    NOT NULL
+                    CONSTRAINT repo_version_repo_fk REFERENCES repos
+
+                , version
+                    SEMVER
+                    NOT NULL
+
+                , CONSTRAINT repo_version_unique
+                    UNIQUE (repo, version)
                 );
         |]
 

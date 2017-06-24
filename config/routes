@@ -9,4 +9,6 @@
 /repo ReposR GET POST
 /repo/#RepoId RepoR GET
 
+/repo/#RepoId/v RepoVersionsR POST
+
 /profile ProfileR GET

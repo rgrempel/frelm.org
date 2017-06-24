@@ -14,3 +14,7 @@ Repo sql=repos
 
     UniqueRepo gitUrl
     deriving Eq Show
+
+RepoVersion
+    repo RepoId
+    version Version

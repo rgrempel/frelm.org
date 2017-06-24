@@ -30,6 +30,8 @@ getRepoR repoId = do
     defaultLayout
         [whamlet|
             <pre>#{show repo}
+            <form method=post action=@{RepoVersionsR repoId}>
+                <button>Check versions
         |]
 
 
@@ -90,3 +92,15 @@ postReposR = do
         FormFailure err -> do
             setMessage $ toHtml ("Invalid input, let's try again" :: Text)
             redirect ReposR
+
+
+postRepoVersionsR :: RepoId -> Handler Html
+postRepoVersionsR repoId = do
+    repo <-
+        runDB $ get404 repoId
+
+    setMessage $
+        toHtml ("Checked versions" :: Text)
+
+    redirect $
+        RepoR repoId
