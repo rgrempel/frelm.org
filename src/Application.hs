@@ -1,6 +1,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -20,10 +21,11 @@ module Application
     , db
     ) where
 
-import Control.Monad.Logger                 (liftLoc, runLoggingT)
-import Database.Persist.Postgresql          (createPostgresqlPool, pgConnStr,
-                                             pgPoolSize, runSqlPool)
 import Import
+
+import Control.Monad.Logger (liftLoc, runLoggingT)
+import Database.Persist.Postgresql (createPostgresqlPool, pgConnStr, pgPoolSize)
+
 import Language.Haskell.TH.Syntax           (qLocation)
 import Network.Wai (Middleware)
 import Network.Wai.Handler.Warp             (Settings, defaultSettings,
@@ -36,6 +38,10 @@ import Network.Wai.Middleware.RequestLogger (Destination (Logger),
                                              mkRequestLogger, outputFormat)
 import System.Log.FastLogger                (defaultBufSize, newStdoutLoggerSet,
                                              toLogStr)
+
+import Database.PostgreSQL.Simple (connectPostgreSQL, withTransaction, close)
+import Database.PostgreSQL.Simple.Migration as SM (MigrationCommand(..), runMigration, runMigrations)
+import NeatInterpolation (text)
 
 import LoadEnv (loadEnv)
 import System.Environment (getEnv)
@@ -86,11 +92,117 @@ makeFoundation appSettings = do
         (pgConnStr  $ appDatabaseConf appSettings)
         (pgPoolSize $ appDatabaseConf appSettings)
 
+    migrateSchema $
+        pgConnStr $
+            appDatabaseConf appSettings
+
     -- Perform database migration using our application's logging settings.
-    runLoggingT (runSqlPool (runMigration migrateAll) pool) logFunc
+    -- runLoggingT (runSqlPool (runMigration migrateAll) pool) logFunc
 
     -- Return the foundation
     return $ mkFoundation pool
+
+
+migrateSchema :: ByteString -> IO ()
+migrateSchema url = do
+    con <-
+        connectPostgreSQL url
+
+    -- TODO: Do something with result ...
+    result <-
+        withTransaction con $
+            SM.runMigrations True con $
+                [ MigrationInitialization
+                , migrateInitial
+                , migrateUsers
+                , migrateSubmissions
+                ]
+
+    close con
+
+
+migrateInitial :: MigrationCommand
+migrateInitial =
+    MigrationScript "migrate-initial" $ encodeUtf8
+        [text|
+            CREATE EXTENSION IF NOT EXISTS plpgsql WITH SCHEMA pg_catalog;
+        |]
+
+
+migrateUsers :: MigrationCommand
+migrateUsers =
+    MigrationScript "migrate-users" $ encodeUtf8
+        [text|
+            CREATE TABLE "user" (
+                id bigint NOT NULL,
+                name character varying NOT NULL,
+                email character varying NOT NULL,
+                plugin character varying NOT NULL,
+                ident character varying NOT NULL,
+                avatar_url character varying
+            );
+
+            CREATE SEQUENCE user_id_seq
+                START WITH 1
+                INCREMENT BY 1
+                NO MINVALUE
+                NO MAXVALUE
+                CACHE 1;
+
+            ALTER SEQUENCE user_id_seq
+                OWNED BY "user".id;
+
+            ALTER TABLE ONLY "user"
+                ALTER COLUMN id
+                SET DEFAULT nextval('user_id_seq'::regclass);
+
+            ALTER TABLE ONLY "user"
+                ADD CONSTRAINT unique_user
+                UNIQUE (plugin, ident);
+
+            ALTER TABLE ONLY "user"
+                ADD CONSTRAINT user_pkey
+                PRIMARY KEY (id);
+        |]
+
+
+migrateSubmissions :: MigrationCommand
+migrateSubmissions =
+    MigrationScript "migrate-submission" $ encodeUtf8
+        [text|
+            CREATE TABLE submission (
+                id bigint NOT NULL,
+                source character varying NOT NULL,
+                submitted_by bigint NOT NULL
+            );
+
+            CREATE SEQUENCE submission_id_seq
+                START WITH 1
+                INCREMENT BY 1
+                NO MINVALUE
+                NO MAXVALUE
+                CACHE 1;
+
+            ALTER SEQUENCE submission_id_seq
+                OWNED BY submission.id;
+
+            ALTER TABLE ONLY submission
+                ALTER COLUMN id
+                SET DEFAULT nextval('submission_id_seq'::regclass);
+
+            ALTER TABLE ONLY submission
+                ADD CONSTRAINT submission_pkey
+                PRIMARY KEY (id);
+
+            ALTER TABLE ONLY submission
+                ADD CONSTRAINT unique_submission
+                UNIQUE (source);
+
+            ALTER TABLE ONLY submission
+                ADD CONSTRAINT submission_submitted_by_fkey
+                FOREIGN KEY (submitted_by)
+                REFERENCES "user"(id);
+        |]
 
 
 getGithubOAuthKeys :: IO OAuthKeys

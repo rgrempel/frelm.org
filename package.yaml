@@ -48,6 +48,9 @@ dependencies:
 - wai
 - load-env
 - lifted-base
+- postgresql-simple
+- postgresql-simple-migration
+- neat-interpolation
 
 # The library contains all of our application code. The executable
 # defined below is just a thin wrapper.
