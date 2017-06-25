@@ -7,8 +7,10 @@
 
 module Handler.Repo where
 
+import Data.SemVer (Version, fromText, toText)
 import Import
 import System.Process (readProcessWithExitCode)
+import Text.Parsec as Parsec
 
 
 data SubmissionForm = SubmissionForm
@@ -110,12 +112,77 @@ postRepoVersionsR repoId = do
                 [ "ls-remote"
                 , "--tags"
                 , "--quiet"
+                , "--refs"
                 , unpack $ repoGitUrl repo
                 ]
                 ""
 
+    let tagsAndVersions =
+            ( rights
+            . fmap (parse lsRemoteLine "line")
+            . lines
+            )
+            stdOut
+
+    -- TODO: This would probably be better as a single query,
+    -- returning a list of existing entries.
+    results <-
+        forM tagsAndVersions $ \(tag, version) ->
+            runDB $ do
+                existing <-
+                    getBy (UniqueRepoVersion repoId version)
+
+                case existing of
+                    Just _ ->
+                        pure (Right version)
+
+                    Nothing -> do
+                        insert $ RepoVersion
+                            { repoVersionRepo = repoId
+                            , repoVersionTag = pack tag
+                            , repoVersionVersion = version
+                            }
+
+                        pure (Left version)
+
+    let
+        newVersions =
+            lefts results
+
+        oldVersions =
+            rights results
+
     setMessage $ toHtml $
-        "Checked versions: Here's what I got: <pre>" ++ stdOut ++ "</pre>"
+        "Checked for versions.\n\n I found these new versions\n\n " ++
+        show (toText <$> newVersions) ++
+        "\n\nAnd these versions I already knew about\n\n" ++
+        show (toText <$> oldVersions)
 
     redirect $
         RepoR repoId
+
+
+sha40 :: Parsec String () String
+sha40 =
+    Parsec.count 40 Parsec.hexDigit
+
+
+tag :: Parsec String () (String, Version)
+tag = do
+    string "refs/tags/"
+    tag <- Parsec.many anyChar
+    eof
+
+    case fromText $ pack tag of
+        Right version ->
+            return (tag, version)
+
+        Left err ->
+            unexpected err
+
+
+lsRemoteLine :: Parsec String () (String, Version)
+lsRemoteLine = do
+    sha40
+    tab
+    tag

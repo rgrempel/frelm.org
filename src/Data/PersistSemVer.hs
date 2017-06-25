@@ -19,19 +19,16 @@ import Data.SemVer (Version, fromText, toText)
 
 instance PersistField Version where
     toPersistValue =
-        PersistText . toText
+        PersistDbSpecific . encodeUtf8 . toText
 
     fromPersistValue v =
         case v of
-            PersistText str ->
-                first pack $ fromText str
-
-            PersistByteString str ->
+            PersistDbSpecific str ->
                 first pack $ fromText $ decodeUtf8 str
 
             _ ->
-                Left $ "Got unexpected persist value"
+                Left $ "Got unexpected persist value: " ++ pack (show v)
 
 
 instance PersistFieldSql Version where
-    sqlType _ = SqlString
+    sqlType _ = SqlOther "SEMVER"

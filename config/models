@@ -17,4 +17,8 @@ Repo sql=repos
 
 RepoVersion
     repo RepoId
+    tag Text
     version Version
+
+    UniqueRepoVersion repo version
+    deriving Eq Show

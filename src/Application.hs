@@ -117,6 +117,7 @@ migrateSchema url = do
                 , createUsers
                 , createRepos
                 , createRepoVersions
+                , addTagToRepoVersions
                 ]
 
     close con
@@ -209,6 +210,16 @@ createRepoVersions =
                 );
         |]
 
+
+addTagToRepoVersions :: MigrationCommand
+addTagToRepoVersions =
+    MigrationScript "repo-version-add-tag" $ encodeUtf8
+        [text|
+            ALTER TABLE repo_version
+                ADD COLUMN tag
+                    VARCHAR
+                    NOT NULL;
+        |]
 
 getGithubOAuthKeys :: IO OAuthKeys
 getGithubOAuthKeys =
