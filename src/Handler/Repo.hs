@@ -27,14 +27,49 @@ submissionForm =
 
 getRepoR :: RepoId -> Handler Html
 getRepoR repoId = do
-    repo <-
-        runDB $ get404 repoId
+    (repo, versions) <-
+        runDB $ do
+            r <-
+                get404 repoId
+
+            v <-
+                selectList
+                    [ RepoVersionRepo ==. repoId ]
+                    [ Asc RepoVersionVersion ]
+
+            pure (r, v)
 
     defaultLayout
         [whamlet|
             <pre>#{show repo}
             <form method=post action=@{RepoVersionsR repoId}>
                 <button>Check versions
+
+            <h4>Versions
+                $forall Entity versionId version <- versions
+                    <div>
+                        <a href=@{RepoVersionR versionId}>#{toText $ repoVersionVersion version}
+        |]
+
+
+getRepoVersionR :: RepoVersionId -> Handler Html
+getRepoVersionR repoVersionId = do
+    ( repoVersion, repo ) <-
+        runDB $ do
+            -- TODO: Should do this in one query
+            v <-
+                get404 repoVersionId
+
+            r <-
+                get404 (repoVersionRepo v)
+
+            pure (v, r)
+
+    defaultLayout
+        [whamlet|
+            <pre>#{show repo}
+
+            <h4>Version #{toText $ repoVersionVersion repoVersion}
         |]
 
 

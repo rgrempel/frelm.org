@@ -173,6 +173,7 @@ instance Yesod App where
     isAuthorized (StaticR _) _ = return Authorized
 
     isAuthorized ProfileR _ = isAuthenticated
+    isAuthorized (RepoVersionR _) _ = return Authorized
     isAuthorized (RepoVersionsR _) _ = isAuthenticated
 
     isAuthorized (RepoR _) write =
