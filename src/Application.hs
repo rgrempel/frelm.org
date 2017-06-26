@@ -118,6 +118,7 @@ migrateSchema url = do
                 , createRepos
                 , createRepoVersions
                 , addTagToRepoVersions
+                , addPackageToRepoVersions
                 ]
 
     close con
@@ -208,6 +209,17 @@ createRepoVersions =
                 , CONSTRAINT repo_version_unique
                     UNIQUE (repo, version)
                 );
+        |]
+
+
+addPackageToRepoVersions :: MigrationCommand
+addPackageToRepoVersions =
+    MigrationScript "repo-version-add-package" $ encodeUtf8
+        [text|
+            ALTER TABLE repo_version
+                ADD COLUMN package
+                    VARCHAR
+                    NOT NULL;
         |]
 
 

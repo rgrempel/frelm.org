@@ -19,6 +19,8 @@ RepoVersion
     repo RepoId
     tag Text
     version Version
+    package Text
+    -- TDOD: Use a JSON type?
 
     UniqueRepoVersion repo version
     deriving Eq Show

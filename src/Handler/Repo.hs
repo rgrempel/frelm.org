@@ -4,11 +4,14 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Handler.Repo where
 
 import Data.SemVer (Version, fromText, toText)
 import Import
+import System.FilePath ((</>))
+import System.IO.Temp (withSystemTempDirectory)
 import System.Process (readProcessWithExitCode)
 import Text.Parsec as Parsec
 
@@ -138,86 +141,138 @@ postReposR = do
  -}
 postRepoVersionsR :: RepoId -> Handler Html
 postRepoVersionsR repoId = do
-    repo <-
-        runDB $ get404 repoId
-
-    ( exitCode, stdOut, stdErr ) <-
-        liftIO $
-            readProcessWithExitCode "git"
-                [ "ls-remote"
-                , "--tags"
-                , "--quiet"
-                , "--refs"
-                , unpack $ repoGitUrl repo
-                ]
-                ""
-
-    let tagsAndVersions =
-            ( rights
-            . fmap (parse lsRemoteLine "line")
-            . lines
-            )
-            stdOut
-
-    -- TODO: This would probably be better as a single query,
-    -- returning a list of existing entries.
-    results <-
-        forM tagsAndVersions $ \(tag, version) ->
-            runDB $ do
-                existing <-
-                    getBy (UniqueRepoVersion repoId version)
-
-                case existing of
-                    Just _ ->
-                        pure (Right version)
-
-                    Nothing -> do
-                        insert $ RepoVersion
-                            { repoVersionRepo = repoId
-                            , repoVersionTag = pack tag
-                            , repoVersionVersion = version
-                            }
-
-                        pure (Left version)
-
-    let
-        newVersions =
-            lefts results
-
-        oldVersions =
-            rights results
-
-    setMessage $ toHtml $
-        "Checked for versions.\n\n I found these new versions\n\n " ++
-        show (toText <$> newVersions) ++
-        "\n\nAnd these versions I already knew about\n\n" ++
-        show (toText <$> oldVersions)
+    runDB $
+        checkTags repoId
 
     redirect $
         RepoR repoId
 
 
-sha40 :: Parsec String () String
-sha40 =
-    Parsec.count 40 Parsec.hexDigit
+checkTags :: RepoId -> YesodDB App ()
+checkTags repoId = do
+    mRepo <-
+        get repoId
+
+    forM_ mRepo $ \repo -> do
+        knownVersions :: [Version] <-
+            (fmap (repoVersionVersion . entityVal)) <$>
+                selectList
+                    [ RepoVersionRepo ==. repoId ]
+                    [ Asc RepoVersionVersion ]
+
+        fetchedVersions :: [(Version, String)] <-
+            liftIO $
+                fetchGitTags (repoGitUrl repo)
+
+        let
+            newVersions =
+                filter (\a -> notElem (fst a) knownVersions) fetchedVersions
+
+        unless (null newVersions) $
+            withSystemTempDirectory "git-clone" $ \path -> do
+                gitDir <-
+                    cloneGitRepo (repoGitUrl repo) path
+
+                forM_ newVersions $ \(version, tag) -> do
+                    checkNewTag repoId gitDir version tag
 
 
-tag :: Parsec String () (String, Version)
-tag = do
-    string "refs/tags/"
-    tag <- Parsec.many anyChar
-    eof
+checkNewTag :: RepoId -> FilePath -> Version -> String -> YesodDB App ()
+checkNewTag repoId gitDir version tag = do
+    checkoutGitRepo gitDir tag
 
-    case fromText $ pack tag of
-        Right version ->
-            return (tag, version)
+    package <-
+        liftIO $
+            -- TODO: Here and elsewhere, consider exceptions!
+            readFile $ gitDir </> "elm-package.json"
 
-        Left err ->
-            unexpected err
+    insert $
+        RepoVersion
+            { repoVersionRepo = repoId
+            , repoVersionTag = pack tag
+            , repoVersionVersion = version
+            , repoVersionPackage = pack package
+            }
+
+    pure ()
 
 
-lsRemoteLine :: Parsec String () (String, Version)
-lsRemoteLine = do
-    sha40
-    tab
-    tag
+checkoutGitRepo :: (MonadIO m, MonadLogger m) => FilePath -> String -> m ()
+checkoutGitRepo gitDir tag = do
+    -- TODO: Do something with exitCode etc.
+    ( exitCode, stdOut, stdErr ) <-
+        liftIO $
+            readProcessWithExitCode "git"
+                [ "-C"
+                , gitDir
+                , "checkout"
+                , "--quiet"
+                , "--detach"
+                , tag
+                ]
+                ""
+
+    pure ()
+
+
+cloneGitRepo :: (MonadLogger m, MonadIO m) => Text -> FilePath -> m FilePath
+cloneGitRepo gitUrl path = do
+    -- TODO: Do something with exitCode etc.
+    ( exitCode, stdOut, stdErr ) <-
+        liftIO $
+            readProcessWithExitCode "git"
+                [ "-C"
+                , path
+                , "clone"
+                , "--depth"
+                , "1"
+                , "--quiet"
+                , "--no-single-branch"
+                , unpack $ gitUrl
+                , "git-clone"
+                ]
+                ""
+
+    pure $ path </> "git-clone"
+
+
+fetchGitTags :: Text -> IO [(Version, String)]
+fetchGitTags gitUrl = do
+    -- TODO: Check exitCode etc.
+    ( exitCode, stdOut, stdErr ) <-
+        readProcessWithExitCode "git"
+            [ "ls-remote"
+            , "--tags"
+            , "--quiet"
+            , "--refs"
+            , unpack $ gitUrl
+            ]
+            ""
+
+    pure $
+        ( rights
+        . fmap (parse parseTagAndVersion "line")
+        . lines
+        )
+        stdOut
+
+
+parseTagAndVersion :: Parsec String () (Version, String)
+parseTagAndVersion =
+    sha40 *> tab *> parseTag
+
+    where
+        sha40 =
+            Parsec.count 40 Parsec.hexDigit
+
+        parseTag = do
+            string "refs/tags/"
+            tag <- Parsec.many anyChar
+            eof
+
+            case fromText $ pack tag of
+                Right version ->
+                    return (version, tag)
+
+                Left err ->
+                    unexpected err
