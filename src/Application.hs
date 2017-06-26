@@ -40,7 +40,7 @@ import System.Log.FastLogger                (defaultBufSize, newStdoutLoggerSet,
                                              toLogStr)
 
 import Database.PostgreSQL.Simple (connectPostgreSQL, withTransaction, close)
-import Database.PostgreSQL.Simple.Migration as SM (MigrationCommand(..), runMigration, runMigrations)
+import Database.PostgreSQL.Simple.Migration as SM (MigrationCommand(..), runMigrations)
 import NeatInterpolation (text)
 
 import LoadEnv (loadEnv)
