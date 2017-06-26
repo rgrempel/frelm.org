@@ -176,17 +176,8 @@ instance Yesod App where
     isAuthorized (RepoVersionR _) _ = return Authorized
     isAuthorized (RepoVersionsR _) _ = isAuthenticated
 
-    isAuthorized (RepoR _) write =
-        if write then
-            isAuthenticated
-        else
-            return Authorized
-
-    isAuthorized ReposR write =
-        if write then
-            isAuthenticated
-        else
-            return Authorized
+    isAuthorized (RepoR _) write = authorizeWrite write
+    isAuthorized ReposR write = authorizeWrite write
 
 
     -- This function creates static content files in the static folder
@@ -208,6 +199,7 @@ instance Yesod App where
         -- Generate a unique filename based on the content itself
         genFileName lbs = "autogen-" ++ base64md5 lbs
 
+
     -- What messages should be logged. The following includes all messages when
     -- in development, and warnings and errors in production.
     shouldLog app _source level =
@@ -215,11 +207,23 @@ instance Yesod App where
             || level == LevelWarn
             || level == LevelError
 
-    makeLogger = return . appLogger
+    makeLogger =
+        return . appLogger
+
 
     -- Provide proper Bootstrap styling for default displays, like
     -- error pages
-    defaultMessageWidget title body = $(widgetFile "default-message-widget")
+    defaultMessageWidget title body =
+        $(widgetFile "default-message-widget")
+
+
+authorizeWrite :: Bool -> Handler AuthResult
+authorizeWrite write =
+    if write then
+        isAuthenticated
+    else
+        return Authorized
+
 
 -- Define breadcrumbs.
 instance YesodBreadcrumbs App where
