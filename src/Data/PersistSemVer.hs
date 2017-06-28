@@ -12,6 +12,7 @@
 module Data.PersistSemVer where
 
 import ClassyPrelude.Yesod
+import Data.Aeson (withText)
 import Database.Persist (PersistValue(..))
 import Database.Persist.Sql (PersistFieldSql(..))
 import Data.SemVer (Version, fromText, toText)
@@ -31,4 +32,11 @@ instance PersistField Version where
 
 
 instance PersistFieldSql Version where
-    sqlType _ = SqlOther "SEMVER"
+    sqlType _ =
+        SqlOther "SEMVER"
+
+
+instance FromJSON Version where
+    parseJSON =
+        withText "version" $
+            either fail pure . fromText

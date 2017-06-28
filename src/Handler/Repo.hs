@@ -272,7 +272,7 @@ parseTagAndVersion =
 
             case fromText $ pack tag of
                 Right version ->
-                    return (version, tag)
+                    pure (version, tag)
 
                 Left err ->
                     unexpected err

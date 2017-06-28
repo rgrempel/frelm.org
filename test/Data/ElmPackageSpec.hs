@@ -7,7 +7,8 @@ module Data.ElmPackageSpec (spec) where
 
 import Data.Aeson
 import Data.ElmPackage
-import Data.SemVer (Version, version)
+import qualified Data.Map
+import Data.SemVer (version)
 import NeatInterpolation (text)
 import TestImport
 
@@ -29,23 +30,18 @@ typicalExampleParsed =
         , elmPackageLicense = "MIT"
         , elmPackageModules = ["DictList"]
         , elmPackageDependencies =
-            [ Dependency
-                { label =
-                    "elm-community/list-extra"
-                , bounds =
-                    VersionBounds
+            Data.Map.fromList
+                [ ( "elm-community/list-extra"
+                  , VersionBounds
                         (version 5 0 0 [] [])
                         (version 6 0 0 [] [])
-                }
-            , Dependency
-                { label =
-                    "elm-lang/core"
-                , bounds =
-                    VersionBounds
+                  )
+                , ( "elm-lang/core"
+                  , VersionBounds
                         (version 5 0 0 [] [])
                         (version 6 0 0 [] [])
-                }
-            ]
+                  )
+                ]
         , elmPackageElmVersion =
             VersionBounds
                 (version 0 18 0 [] [])
