@@ -51,24 +51,40 @@ instance FromJSON VersionBounds where
                 Parsec.parse parseBounds "version bounds" v
 
 
+parseVersion :: Parsec Text () Version
+parseVersion = do
+    str <-
+        Parsec.many $
+            asum
+                [ Parsec.alphaNum
+                , Parsec.char '.'
+                , Parsec.char '-'
+                , Parsec.char '+'
+                ]
+
+    either unexpected pure (fromText $ pack str)
+
+
 parseBounds :: Parsec Text () VersionBounds
 parseBounds = do
+    Parsec.spaces
+
     lowerBound <-
-        Parsec.many $
-            Parsec.alphaNum Parsec.<|> Parsec.char '.'
+        parseVersion
 
     Parsec.spaces
-    Parsec.string "<= v <"
+    Parsec.string "<="
+    Parsec.spaces
+    Parsec.char 'v'
+    Parsec.spaces
+    Parsec.char '<'
     Parsec.spaces
 
     upperBound <-
-        Parsec.many $
-            Parsec.alphaNum Parsec.<|> Parsec.char '.'
+        parseVersion
 
     Parsec.spaces
     Parsec.eof
 
-    either unexpected pure $
-        VersionBounds
-            <$> (fromText $ pack lowerBound)
-            <*> (fromText $ pack upperBound)
+    pure $
+        VersionBounds lowerBound upperBound
