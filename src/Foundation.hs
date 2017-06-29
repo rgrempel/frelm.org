@@ -4,6 +4,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 module Foundation where
 
@@ -48,6 +49,7 @@ data MenuTypes
     = NavbarLeft MenuItem
     | NavbarRight MenuItem
 
+
 -- This is where we define all of the routes in our application. For a full
 -- explanation of the syntax, please see:
 -- http://www.yesodweb.com/book/routing-and-handlers
@@ -60,7 +62,25 @@ data MenuTypes
 -- This function also generates the following type synonyms:
 -- type Handler = HandlerT App IO
 -- type Widget = WidgetT App IO ()
-mkYesodData "App" $(parseRoutesFile "config/routes")
+mkYesodData "App"
+    [parseRoutes|
+        /static StaticR Static appStatic
+        /auth   AuthR   Auth   getAuth
+
+        /favicon.ico FaviconR GET
+        /robots.txt RobotsR GET
+
+        / HomeR GET
+
+        /repo ReposR GET POST
+        /repo/#RepoId RepoR GET
+
+        /repo/#RepoId/v RepoVersionsR POST
+        /version/#RepoVersionId RepoVersionR GET
+
+        /profile ProfileR GET
+    |]
+
 
 -- | A convenient synonym for creating forms.
 type Form x = Html -> MForm (HandlerT App IO) (FormResult x, Widget)
