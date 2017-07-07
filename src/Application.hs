@@ -14,7 +14,6 @@ module Application
     ( getApplicationDev
     , appMain
     , develMain
-    , workerMain
     , makeFoundation
     , makeLogWare
     -- * for DevelMain
@@ -25,9 +24,9 @@ module Application
     , db
     ) where
 
-import Import
+import Import.App
 
-import Control.Monad.Logger (liftLoc, runLoggingT, runStdoutLoggingT)
+import Control.Monad.Logger (liftLoc, runLoggingT)
 import Database.Persist.Postgresql (createPostgresqlPool, pgConnStr, pgPoolSize)
 
 import Language.Haskell.TH.Syntax           (qLocation)
@@ -43,11 +42,9 @@ import Network.Wai.Middleware.RequestLogger (Destination (Logger),
 import System.Log.FastLogger                (defaultBufSize, newStdoutLoggerSet,
                                              toLogStr)
 
-import Database.PostgreSQL.Simple (connectPostgreSQL, withTransaction, close)
-import Database.PostgreSQL.Simple.Migration as SM (MigrationCommand(..), MigrationResult, runMigrations)
-import NeatInterpolation (text)
+import Database.Migrate
 
-import LoadEnv (loadEnv, loadEnvFrom)
+import LoadEnv (loadEnv)
 import System.Environment (getEnv)
 
 -- Import all relevant handler modules here.
@@ -56,8 +53,6 @@ import Handler.Common
 import Handler.Home
 import Handler.Repo
 import Handler.Profile
-
-import Worker (runWorker)
 
 
 -- This line actually creates our YesodDispatch instance. It is the second half
@@ -110,138 +105,6 @@ makeFoundation appSettings = do
     -- Return the foundation
     return $ mkFoundation pool
 
-
-migrateSchema :: ByteString -> IO (SM.MigrationResult String)
-migrateSchema url = do
-    con <-
-        connectPostgreSQL url
-
-    -- TODO: Do something with result ...
-    result <-
-        withTransaction con $
-            SM.runMigrations True con $
-                [ MigrationInitialization
-                , migrateInitial
-                , createUsers
-                , createRepos
-                , createRepoVersions
-                , addTagToRepoVersions
-                , addPackageToRepoVersions
-                ]
-
-    close con
-
-    pure result
-
-
-migrateInitial :: MigrationCommand
-migrateInitial =
-    MigrationScript "migrate-initial" $ encodeUtf8
-        [text|
-            CREATE EXTENSION IF NOT EXISTS plpgsql
-                WITH SCHEMA pg_catalog;
-        |]
-
-
-createUsers :: MigrationCommand
-createUsers =
-    MigrationScript "create-users" $ encodeUtf8
-        [text|
-            CREATE TABLE users
-                ( id
-                    BIGSERIAL
-                    PRIMARY KEY
-
-                , name
-                    VARCHAR
-                    NOT NULL
-
-                , email
-                    VARCHAR
-                    NOT NULL
-
-                , plugin
-                    VARCHAR
-                    NOT NULL
-
-                , ident
-                    VARCHAR
-                    NOT NULL
-
-                , avatar_url
-                    VARCHAR
-
-                , CONSTRAINT users_unique
-                    UNIQUE (plugin, ident)
-                );
-        |]
-
-
-createRepos :: MigrationCommand
-createRepos =
-    MigrationScript "create-repos" $ encodeUtf8
-        [text|
-            CREATE TABLE repos
-                ( id
-                    BIGSERIAL
-                    PRIMARY KEY
-
-                , git_url
-                    VARCHAR
-                    NOT NULL
-                    CONSTRAINT repos_unique_git_url UNIQUE
-
-                , submitted_by
-                    BIGINT
-                    CONSTRAINT repos_users_fk REFERENCES users
-                );
-        |]
-
-
-createRepoVersions :: MigrationCommand
-createRepoVersions =
-    MigrationScript "create-repo-version" $ encodeUtf8
-        [text|
-            CREATE TABLE repo_version
-                ( id
-                    BIGSERIAL
-                    PRIMARY KEY
-
-                , repo
-                    BIGINT
-                    NOT NULL
-                    CONSTRAINT repo_version_repo_fk REFERENCES repos
-
-                , version
-                    SEMVER
-                    NOT NULL
-
-                , CONSTRAINT repo_version_unique
-                    UNIQUE (repo, version)
-                );
-        |]
-
-
-addPackageToRepoVersions :: MigrationCommand
-addPackageToRepoVersions =
-    MigrationScript "repo-version-add-package" $ encodeUtf8
-        [text|
-            ALTER TABLE repo_version
-                ADD COLUMN package
-                    VARCHAR
-                    NOT NULL;
-        |]
-
-
-addTagToRepoVersions :: MigrationCommand
-addTagToRepoVersions =
-    MigrationScript "repo-version-add-tag" $ encodeUtf8
-        [text|
-            ALTER TABLE repo_version
-                ADD COLUMN tag
-                    VARCHAR
-                    NOT NULL;
-        |]
 
 getGithubOAuthKeys :: IO OAuthKeys
 getGithubOAuthKeys =
@@ -336,32 +199,6 @@ appMain = do
 
     -- Run the application with Warp
     runSettings (warpSettings foundation) app
-
-
--- | The main function for the worker.
-workerMain :: IO ()
-workerMain = do
-    loadEnv
-    loadEnvFrom "./.env-worker"
-
-    workerSettings <-
-        loadYamlSettingsArgs [configSettingsYmlValue] useEnv
-
-    -- TODO: Care about result
-    _ <-
-        migrateSchema $
-            pgConnStr $
-                workerDatabaseConf workerSettings
-
-    runStdoutLoggingT $ do
-        workerConnPool <-
-            createPostgresqlPool
-                (pgConnStr  $ workerDatabaseConf workerSettings)
-                (pgPoolSize $ workerDatabaseConf workerSettings)
-
-        let worker = Worker {..}
-
-        runResourceT $ flip runReaderT worker $ runWorker
 
 
 --------------------------------------------------------------

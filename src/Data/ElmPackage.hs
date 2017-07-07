@@ -9,9 +9,10 @@
 -- | A module for decoding an elm-package.json structure.
 module Data.ElmPackage where
 
-import Data.Aeson (withObject, withText)
+import ClassyPrelude
+import Data.Aeson
+import Data.PersistSemVer ()
 import Data.SemVer (Version, fromText)
-import Import
 import Text.Parsec as Parsec
 import Text.Parsec (spaces, string, char)
 

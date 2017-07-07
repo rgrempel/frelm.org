@@ -8,7 +8,7 @@
 {-# LANGUAGE QuasiQuotes                #-}
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeFamilies               #-}
-module Model where
+module Data.Model where
 
 import ClassyPrelude.Yesod
 import Data.PersistSemVer ()

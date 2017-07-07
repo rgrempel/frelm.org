@@ -10,7 +10,7 @@ module Handler.Repo where
 
 import Data.SemVer (Version, fromText, toText)
 import GHC.IO.Exception (ExitCode)
-import Import
+import Import.App
 import System.FilePath ((</>))
 import System.IO.Temp (withSystemTempDirectory)
 import System.Process (readProcessWithExitCode)

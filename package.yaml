@@ -56,6 +56,7 @@ dependencies:
 - parsec
 - temporary
 - filepath
+- resourcet
 
 # The library contains all of our application code. The executable
 # defined below is just a thin wrapper.
@@ -78,7 +79,7 @@ library:
 # Runnable executable for our application
 executables:
   frelm-packages:
-    main: main.hs
+    main: app.hs
     source-dirs: app
     ghc-options:
     - -threaded
@@ -91,7 +92,7 @@ executables:
       buildable: false
 
   frelm-worker:
-    main: worker.hs
+    main: work.hs
     source-dirs: app
     ghc-options:
     - -threaded

@@ -12,7 +12,7 @@
 module Data.PersistSemVer where
 
 import ClassyPrelude.Yesod
-import Data.Aeson (withText)
+import Data.Aeson
 import Database.Persist (PersistValue(..))
 import Database.Persist.Sql (PersistFieldSql(..))
 import Data.SemVer (Version, fromText, toText)

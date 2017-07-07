@@ -5,7 +5,7 @@
 {-# LANGUAGE TypeFamilies #-}
 module Handler.Profile where
 
-import Import
+import Import.App
 
 getProfileR :: Handler Html
 getProfileR = do

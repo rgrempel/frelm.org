@@ -6,7 +6,7 @@
 
 module Handler.Home where
 
-import Import
+import Import.App
 -- import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
 -- import Text.Julius (RawJS (..))
 

@@ -1,4 +1,4 @@
-module Import
+module Import.App
     ( module Import
     ) where
 
