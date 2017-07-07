@@ -65,6 +65,12 @@ data AppSettings = AppSettings
     }
 
 
+-- | Settings for the worker process.
+data WorkerSettings = WorkerSettings
+    { workerDatabaseConf :: PostgresConf
+    }
+
+
 data OAuthKeys = OAuthKeys
     { oauthKeysClientId :: Text
     , oauthKeysClientSecret :: Text
@@ -98,6 +104,15 @@ instance FromJSON AppSettings where
         appAuthDummyLogin         <- o .:? "auth-dummy-login"      .!= defaultDev
 
         return AppSettings {..}
+
+
+instance FromJSON WorkerSettings where
+    parseJSON =
+        withObject "WorkerSettings" $ \o -> do
+            workerDatabaseConf <- o .: "database"
+
+            pure WorkerSettings {..}
+
 
 -- | Settings for 'widgetFile', such as which template languages to support and
 -- default Hamlet settings.

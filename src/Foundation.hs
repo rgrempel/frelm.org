@@ -39,6 +39,14 @@ data App = App
     , appGitlabOAuthKeys :: OAuthKeys
     }
 
+
+-- | The Foundation datatype for the worker.
+data Worker = Worker
+    { workerSettings :: WorkerSettings
+    , workerConnPool :: ConnectionPool
+    }
+
+
 data MenuItem = MenuItem
     { menuItemLabel :: Text
     , menuItemRoute :: Route App

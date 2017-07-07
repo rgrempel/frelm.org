@@ -1,9 +1,7 @@
 import Control.Concurrent
 import Control.Monad
 import Prelude
+import Application (workerMain)
 
 main :: IO ()
-main =
-    forever $ do
-        putStrLn "Hello Winnipeg!"
-        threadDelay 1000000
+main = workerMain

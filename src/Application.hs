@@ -1,5 +1,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -7,10 +9,12 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module Application
     ( getApplicationDev
     , appMain
     , develMain
+    , workerMain
     , makeFoundation
     , makeLogWare
     -- * for DevelMain
@@ -23,8 +27,8 @@ module Application
 
 import Import
 
-import Control.Monad.Logger (liftLoc, runLoggingT)
-import Database.Persist.Postgresql (createPostgresqlPool, pgConnStr, pgPoolSize)
+import Control.Monad.Logger (LoggingT, liftLoc, runLoggingT, runStdoutLoggingT, LogSource, LogLevel)
+import Database.Persist.Postgresql (createPostgresqlPool, withPostgresqlPool, pgConnStr, pgPoolSize, runSqlPool)
 
 import Language.Haskell.TH.Syntax           (qLocation)
 import Network.Wai (Middleware)
@@ -43,7 +47,7 @@ import Database.PostgreSQL.Simple (connectPostgreSQL, withTransaction, close)
 import Database.PostgreSQL.Simple.Migration as SM (MigrationCommand(..), runMigrations)
 import NeatInterpolation (text)
 
-import LoadEnv (loadEnv)
+import LoadEnv (loadEnv, loadEnvFrom)
 import System.Environment (getEnv)
 
 -- Import all relevant handler modules here.
@@ -88,9 +92,11 @@ makeFoundation appSettings = do
         logFunc = messageLoggerSource tempFoundation appLogger
 
     -- Create the database connection pool
-    pool <- flip runLoggingT logFunc $ createPostgresqlPool
-        (pgConnStr  $ appDatabaseConf appSettings)
-        (pgPoolSize $ appDatabaseConf appSettings)
+    pool <-
+        flip runLoggingT logFunc $
+            createPostgresqlPool
+                (pgConnStr  $ appDatabaseConf appSettings)
+                (pgPoolSize $ appDatabaseConf appSettings)
 
     migrateSchema $
         pgConnStr $
@@ -308,21 +314,71 @@ appMain = do
     loadEnv
 
     -- Get the settings from all relevant sources
-    settings <- loadYamlSettingsArgs
-        -- fall back to compile-time values, set to [] to require values at runtime
-        [configSettingsYmlValue]
+    settings <-
+        loadYamlSettingsArgs
+            -- fall back to compile-time values, set to [] to require values at runtime
+            [configSettingsYmlValue]
 
-        -- allow environment variables to override
-        useEnv
+            -- allow environment variables to override
+            useEnv
 
     -- Generate the foundation from the settings
-    foundation <- makeFoundation settings
+    foundation <-
+        makeFoundation settings
 
     -- Generate a WAI Application from the foundation
-    app <- makeApplication foundation
+    app <-
+        makeApplication foundation
 
     -- Run the application with Warp
     runSettings (warpSettings foundation) app
+
+
+type WorkerT =
+    ReaderT Worker (ResourceT (LoggingT IO))
+
+
+runWorkerDB :: (MonadBaseControl IO m, MonadReader Worker m) => ReaderT SqlBackend m b -> m b
+runWorkerDB action = do
+    pool <-
+        asks workerConnPool
+
+    runSqlPool action pool
+
+
+thingToDo :: WorkerT ()
+thingToDo = do
+    repos :: [Entity Repo] <-
+        runWorkerDB $
+            selectList [] []
+
+    liftIO $
+        putStrLn (tshow repos)
+
+
+-- | The main function for the worker.
+workerMain :: IO ()
+workerMain = do
+    loadEnv
+    loadEnvFrom "./.env-worker"
+
+    workerSettings <-
+        loadYamlSettingsArgs [configSettingsYmlValue] useEnv
+
+    migrateSchema $
+        pgConnStr $
+            workerDatabaseConf workerSettings
+
+    runStdoutLoggingT $ do
+        workerConnPool <-
+            createPostgresqlPool
+                (pgConnStr  $ workerDatabaseConf workerSettings)
+                (pgPoolSize $ workerDatabaseConf workerSettings)
+
+        let worker = Worker {..}
+
+        runResourceT $ flip runReaderT worker $ do
+            thingToDo
 
 
 --------------------------------------------------------------
