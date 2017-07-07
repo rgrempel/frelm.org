@@ -13,6 +13,7 @@ import Data.Aeson (withObject, withText)
 import Data.SemVer (Version, fromText)
 import Import
 import Text.Parsec as Parsec
+import Text.Parsec (spaces, string, char)
 
 
 data ElmPackage = ElmPackage
@@ -67,24 +68,17 @@ parseVersion = do
 
 parseBounds :: Parsec Text () VersionBounds
 parseBounds = do
-    Parsec.spaces
+    spaces
 
     lowerBound <-
         parseVersion
 
-    Parsec.spaces
-    Parsec.string "<="
-    Parsec.spaces
-    Parsec.char 'v'
-    Parsec.spaces
-    Parsec.char '<'
-    Parsec.spaces
+    spaces >> string "<=" >> spaces >> char 'v' >> spaces >> char '<' >> spaces
 
     upperBound <-
         parseVersion
 
-    Parsec.spaces
-    Parsec.eof
+    spaces >> eof
 
     pure $
         VersionBounds lowerBound upperBound

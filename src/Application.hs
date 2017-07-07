@@ -27,8 +27,8 @@ module Application
 
 import Import
 
-import Control.Monad.Logger (LoggingT, liftLoc, runLoggingT, runStdoutLoggingT, LogSource, LogLevel)
-import Database.Persist.Postgresql (createPostgresqlPool, withPostgresqlPool, pgConnStr, pgPoolSize, runSqlPool)
+import Control.Monad.Logger (liftLoc, runLoggingT, runStdoutLoggingT)
+import Database.Persist.Postgresql (createPostgresqlPool, pgConnStr, pgPoolSize)
 
 import Language.Haskell.TH.Syntax           (qLocation)
 import Network.Wai (Middleware)
@@ -44,7 +44,7 @@ import System.Log.FastLogger                (defaultBufSize, newStdoutLoggerSet,
                                              toLogStr)
 
 import Database.PostgreSQL.Simple (connectPostgreSQL, withTransaction, close)
-import Database.PostgreSQL.Simple.Migration as SM (MigrationCommand(..), runMigrations)
+import Database.PostgreSQL.Simple.Migration as SM (MigrationCommand(..), MigrationResult, runMigrations)
 import NeatInterpolation (text)
 
 import LoadEnv (loadEnv, loadEnvFrom)
@@ -101,18 +101,17 @@ makeFoundation appSettings = do
                 (pgConnStr  $ appDatabaseConf appSettings)
                 (pgPoolSize $ appDatabaseConf appSettings)
 
-    migrateSchema $
-        pgConnStr $
-            appDatabaseConf appSettings
-
-    -- Perform database migration using our application's logging settings.
-    -- runLoggingT (runSqlPool (runMigration migrateAll) pool) logFunc
+    -- TODO: Care about result
+    _ <-
+        migrateSchema $
+            pgConnStr $
+                appDatabaseConf appSettings
 
     -- Return the foundation
     return $ mkFoundation pool
 
 
-migrateSchema :: ByteString -> IO ()
+migrateSchema :: ByteString -> IO (SM.MigrationResult String)
 migrateSchema url = do
     con <-
         connectPostgreSQL url
@@ -131,6 +130,8 @@ migrateSchema url = do
                 ]
 
     close con
+
+    pure result
 
 
 migrateInitial :: MigrationCommand
@@ -346,9 +347,11 @@ workerMain = do
     workerSettings <-
         loadYamlSettingsArgs [configSettingsYmlValue] useEnv
 
-    migrateSchema $
-        pgConnStr $
-            workerDatabaseConf workerSettings
+    -- TODO: Care about result
+    _ <-
+        migrateSchema $
+            pgConnStr $
+                workerDatabaseConf workerSettings
 
     runStdoutLoggingT $ do
         workerConnPool <-

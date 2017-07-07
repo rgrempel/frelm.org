@@ -9,6 +9,7 @@
 module Handler.Repo where
 
 import Data.SemVer (Version, fromText, toText)
+import GHC.IO.Exception (ExitCode)
 import Import
 import System.FilePath ((</>))
 import System.IO.Temp (withSystemTempDirectory)
@@ -100,7 +101,7 @@ getReposR = do
 
 postReposR :: Handler Html
 postReposR = do
-    ((result, widget), enctype) <-
+    ((result, _), _) <-
         runFormPost submissionForm
 
     case result of
@@ -131,7 +132,7 @@ postReposR = do
             redirect ReposR
 
         FormFailure err -> do
-            setMessage $ toHtml ("Invalid input, let's try again" :: Text)
+            setMessage $ toHtml ("Invalid input, let's try again: " ++ tshow err)
             redirect ReposR
 
 
@@ -169,17 +170,20 @@ checkTags repoId = do
                 filter (\a -> notElem (fst a) knownVersions) fetchedVersions
 
         unless (null newVersions) $
-            withSystemTempDirectory "git-clone" $ \path -> do
+            withSystemTempDirectory "git-clone" $ \basedir -> do
                 gitDir <-
-                    cloneGitRepo (repoGitUrl repo) path
+                    cloneGitRepo (repoGitUrl repo) basedir
 
-                forM_ newVersions $ \(version, tag) -> do
-                    checkNewTag repoId gitDir version tag
+                forM_ newVersions $
+                    \(version, tag) ->
+                        void $ checkNewTag repoId gitDir version tag
 
 
-checkNewTag :: RepoId -> FilePath -> Version -> String -> YesodDB App ()
+checkNewTag :: RepoId -> FilePath -> Version -> String -> YesodDB App RepoVersionId
 checkNewTag repoId gitDir version tag = do
-    checkoutGitRepo gitDir tag
+    -- TODO: Care about result
+    void $
+        checkoutGitRepo gitDir tag
 
     package <-
         liftIO $
@@ -194,13 +198,11 @@ checkNewTag repoId gitDir version tag = do
             , repoVersionPackage = pack package
             }
 
-    pure ()
 
-
-checkoutGitRepo :: (MonadIO m, MonadLogger m) => FilePath -> String -> m ()
+checkoutGitRepo :: (MonadIO m, MonadLogger m) => FilePath -> String -> m ExitCode
 checkoutGitRepo gitDir tag = do
     -- TODO: Do something with exitCode etc.
-    ( exitCode, stdOut, stdErr ) <-
+    ( exitCode, _, _ ) <-
         liftIO $
             readProcessWithExitCode "git"
                 [ "-C"
@@ -212,40 +214,40 @@ checkoutGitRepo gitDir tag = do
                 ]
                 ""
 
-    pure ()
+    pure exitCode
 
 
 cloneGitRepo :: (MonadLogger m, MonadIO m) => Text -> FilePath -> m FilePath
-cloneGitRepo gitUrl path = do
+cloneGitRepo url toPath = do
     -- TODO: Do something with exitCode etc.
-    ( exitCode, stdOut, stdErr ) <-
+    _ <-
         liftIO $
             readProcessWithExitCode "git"
                 [ "-C"
-                , path
+                , toPath
                 , "clone"
                 , "--depth"
                 , "1"
                 , "--quiet"
                 , "--no-single-branch"
-                , unpack $ gitUrl
+                , unpack url
                 , "git-clone"
                 ]
                 ""
 
-    pure $ path </> "git-clone"
+    pure $ toPath </> "git-clone"
 
 
 fetchGitTags :: Text -> IO [(Version, String)]
-fetchGitTags gitUrl = do
+fetchGitTags url = do
     -- TODO: Check exitCode etc.
-    ( exitCode, stdOut, stdErr ) <-
+    ( _, stdOut, _ ) <-
         readProcessWithExitCode "git"
             [ "ls-remote"
             , "--tags"
             , "--quiet"
             , "--refs"
-            , unpack $ gitUrl
+            , unpack url
             ]
             ""
 
@@ -266,9 +268,10 @@ parseTagAndVersion =
             Parsec.count 40 Parsec.hexDigit
 
         parseTag = do
-            string "refs/tags/"
-            tag <- Parsec.many anyChar
-            eof
+            tag <-
+                string "refs/tags/"
+                *> Parsec.many anyChar
+                <* eof
 
             case fromText $ pack tag of
                 Right version ->
