@@ -57,6 +57,9 @@ import Handler.Home
 import Handler.Repo
 import Handler.Profile
 
+import Worker (runWorker)
+
+
 -- This line actually creates our YesodDispatch instance. It is the second half
 -- of the call to mkYesodData which occurs in Foundation.hs. Please see the
 -- comments there for more details.
@@ -334,28 +337,6 @@ appMain = do
     runSettings (warpSettings foundation) app
 
 
-type WorkerT =
-    ReaderT Worker (ResourceT (LoggingT IO))
-
-
-runWorkerDB :: (MonadBaseControl IO m, MonadReader Worker m) => ReaderT SqlBackend m b -> m b
-runWorkerDB action = do
-    pool <-
-        asks workerConnPool
-
-    runSqlPool action pool
-
-
-thingToDo :: WorkerT ()
-thingToDo = do
-    repos :: [Entity Repo] <-
-        runWorkerDB $
-            selectList [] []
-
-    liftIO $
-        putStrLn (tshow repos)
-
-
 -- | The main function for the worker.
 workerMain :: IO ()
 workerMain = do
@@ -377,8 +358,7 @@ workerMain = do
 
         let worker = Worker {..}
 
-        runResourceT $ flip runReaderT worker $ do
-            thingToDo
+        runResourceT $ flip runReaderT worker $ runWorker
 
 
 --------------------------------------------------------------
