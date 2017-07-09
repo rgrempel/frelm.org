@@ -76,7 +76,6 @@ mkYesodData "App"
         /repo ReposR GET POST
         /repo/#RepoId RepoR GET
 
-        /repo/#RepoId/v RepoVersionsR POST
         /version/#RepoVersionId RepoVersionR GET
 
         /profile ProfileR GET
@@ -195,7 +194,6 @@ instance Yesod App where
 
     isAuthorized ProfileR _ = isAuthenticated
     isAuthorized (RepoVersionR _) _ = return Authorized
-    isAuthorized (RepoVersionsR _) _ = isAuthenticated
 
     isAuthorized (RepoR _) write = authorizeWrite write
     isAuthorized ReposR write = authorizeWrite write

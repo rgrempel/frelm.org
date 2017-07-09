@@ -162,8 +162,7 @@ warpSettings foundation =
 getApplicationDev :: IO (Settings, Application)
 getApplicationDev = do
     loadEnv
-    settings <- getAppSettings
-    foundation <- makeFoundation settings
+    foundation <- getAppSettings >>= makeFoundation
     wsettings <- getDevSettings $ warpSettings foundation
     app <- makeApplication foundation
     return (wsettings, app)
@@ -182,12 +181,7 @@ appMain = do
 
     -- Get the settings from all relevant sources
     settings <-
-        loadYamlSettingsArgs
-            -- fall back to compile-time values, set to [] to require values at runtime
-            [configSettingsYmlValue]
-
-            -- allow environment variables to override
-            useEnv
+        loadYamlSettings [] [configSettingsYmlValue] useEnv
 
     -- Generate the foundation from the settings
     foundation <-
