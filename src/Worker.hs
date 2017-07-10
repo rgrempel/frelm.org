@@ -18,6 +18,7 @@ import GHC.IO.Exception (ExitCode)
 import Import.Worker hiding ((<>))
 import LoadEnv (loadEnv, loadEnvFrom)
 import Options.Applicative
+import System.Exit (die)
 import System.FilePath ((</>))
 import System.IO.Temp (withSystemTempDirectory)
 import System.Process (readProcessWithExitCode)
@@ -32,23 +33,22 @@ data Worker = Worker
     , workerCommand :: Command
     }
 
-data Command =
-    AddRepo String
+data Command
+    = AddRepo String
+    | RunMigrations
     deriving (Show)
 
 parseArgs :: ParserInfo Command
-parseArgs =
-    info parseCommand $ fullDesc <> progDesc "Worker for frelm.org website."
+parseArgs = info sub $ fullDesc <> progDesc "Worker for frelm.org website."
   where
-    parseCommand =
-        AddRepo <$>
-        subparser
-            (command "add-repo" $
-             info addRepoOptions $
-             progDesc "Add a new repository to the database.")
-    addRepoOptions =
-        argument str $
-        metavar "REPOSITORY" <> help "Git URL to use when cloning"
+    sub =
+        hsubparser $
+        (command "add-repo" $
+         info addRepoOptions $ progDesc "Add a new repository to the database.") <>
+        (command "migrate" $
+         info migrateOptions $ progDesc "Run database migrations")
+    addRepoOptions = fmap AddRepo $ argument str $ metavar "REPOSITORY"
+    migrateOptions = pure RunMigrations
 
 runWorkerDB ::
        (MonadBaseControl IO m, MonadReader Worker m)
@@ -65,6 +65,12 @@ runWorker = do
         AddRepo repo ->
             runWorkerDB $
             insert_ Repo {repoGitUrl = pack repo, repoSubmittedBy = Nothing}
+        RunMigrations -> do
+            dbconf <- asks (workerDatabaseConf . workerSettings)
+            result <- liftIO $ migrateSchema $ pgConnStr dbconf
+            case result of
+                MigrationSuccess -> pure ()
+                MigrationError err -> liftIO $ die err
 
 -- | The main function for the worker.
 workerMain :: IO ()
@@ -73,15 +79,22 @@ workerMain = do
     loadEnvFrom "./.env-worker"
     workerSettings <- loadYamlSettings [] [configSettingsYmlValue] useEnv
     workerCommand <- execParser parseArgs
-    -- TODO: Care about result
-    _ <- migrateSchema $ pgConnStr $ workerDatabaseConf workerSettings
-    runStdoutLoggingT $ do
-        workerConnPool <-
-            createPostgresqlPool
-                (pgConnStr $ workerDatabaseConf workerSettings)
-                (pgPoolSize $ workerDatabaseConf workerSettings)
-        let worker = Worker {..}
-        runResourceT $ runReaderT runWorker worker
+    schemaValidation <-
+        case workerCommand of
+            RunMigrations
+                -- Since we'll run the migrations anyway
+             -> pure MigrationSuccess
+            _ -> validateSchema $ pgConnStr $ workerDatabaseConf workerSettings
+    case schemaValidation of
+        MigrationError err -> die err
+        MigrationSuccess ->
+            runStdoutLoggingT $ do
+                workerConnPool <-
+                    createPostgresqlPool
+                        (pgConnStr $ workerDatabaseConf workerSettings)
+                        (pgPoolSize $ workerDatabaseConf workerSettings)
+                let worker = Worker {..}
+                runResourceT $ runReaderT runWorker worker
 {-
 checkTags :: RepoId -> WorkerT ()
 checkTags repoId = do
