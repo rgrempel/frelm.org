@@ -45,6 +45,8 @@ migrations =
     , createRepoVersions
     , addTagToRepoVersions
     , addPackageToRepoVersions
+    , createTagCheck
+    , createCloneError
     ]
 
 migrateInitial :: MigrationCommand
@@ -155,4 +157,91 @@ addTagToRepoVersions =
                 ADD COLUMN tag
                     VARCHAR
                     NOT NULL;
+        |]
+
+createTagCheck :: MigrationCommand
+createTagCheck =
+    MigrationScript "create-tag-check" $
+    encodeUtf8
+        [text|
+            CREATE TABLE tag_check
+                ( id
+                    BIGSERIAL
+                    PRIMARY KEY
+
+                , repo
+                    BIGINT
+                    NOT NULL
+                    CONSTRAINT tag_check_repo
+                        REFERENCES repos
+                        ON DELETE CASCADE
+
+                , exit_code
+                    INT
+                    NOT NULL
+
+                , stdout
+                    TEXT
+                    NOT NULL
+
+                , stderr
+                    TEXT
+                    NOT NULL
+
+                , ran
+                    TIMESTAMPTZ
+                    NOT NULL
+                    DEFAULT CURRENT_TIMESTAMP
+                );
+
+            CREATE INDEX tag_check_ran_idx
+                ON tag_check (ran);
+
+            CREATE INDEX tag_check_repo_idx
+                ON tag_check (repo);
+
+            CREATE INDEX tag_check_exit_code_idx
+                ON tag_check (exit_code);
+        |]
+
+createCloneError :: MigrationCommand
+createCloneError =
+    MigrationScript "create-clone-error" $
+    encodeUtf8
+        [text|
+            CREATE TABLE clone_error
+                ( id
+                    BIGSERIAL
+                    PRIMARY KEY
+
+                , repo
+                    BIGINT
+                    NOT NULL
+                    CONSTRAINT clone_error_repo
+                        REFERENCES repos
+                        ON DELETE CASCADE
+
+                , exit_code
+                    INT
+                    NOT NULL
+
+                , stdout
+                    TEXT
+                    NOT NULL
+
+                , stderr
+                    TEXT
+                    NOT NULL
+
+                , ran
+                    TIMESTAMPTZ
+                    NOT NULL
+                    DEFAULT CURRENT_TIMESTAMP
+                );
+
+            CREATE INDEX clone_error_ran_idx
+                ON clone_error (ran);
+
+            CREATE INDEX clone_error_repo_idx
+                ON clone_error (repo);
         |]

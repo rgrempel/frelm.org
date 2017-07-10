@@ -1,19 +1,22 @@
-{-# LANGUAGE EmptyDataDecls             #-}
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE GADTs                      #-}
+{-# LANGUAGE EmptyDataDecls #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE NoImplicitPrelude          #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE QuasiQuotes                #-}
-{-# LANGUAGE TemplateHaskell            #-}
-{-# LANGUAGE TypeFamilies               #-}
-module Data.Model where
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies #-}
 
-import ClassyPrelude.Yesod
+module Database.Model where
+
+import ClassyPrelude
+import Data.PersistExitCode ()
 import Data.PersistSemVer ()
 import Data.SemVer (Version)
-
+import Database.Persist.TH
+import GHC.IO.Exception (ExitCode)
 
 -- You can define all of your database entities in the entities file.
 -- You can find more information on persistent and how to declare entities
@@ -38,6 +41,20 @@ share
 
             UniqueRepo gitUrl
             deriving Eq Show
+
+        TagCheck
+            repo RepoId
+            ran UTCTime
+            exitCode ExitCode
+            stdout Text
+            stderr Text
+
+        CloneError
+            repo RepoId
+            ran UTCTime
+            exitCode ExitCode
+            stdout Text
+            stderr Text
 
         RepoVersion
             repo RepoId
