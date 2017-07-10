@@ -7,13 +7,8 @@
 
 module Handler.Repo where
 
-import Data.SemVer (Version, fromText, toText)
-import GHC.IO.Exception (ExitCode)
+import Data.SemVer (toText)
 import Import.App
-import System.FilePath ((</>))
-import System.IO.Temp (withSystemTempDirectory)
-import System.Process (readProcessWithExitCode)
-import Text.Parsec as Parsec
 
 data SubmissionForm = SubmissionForm
     { gitUrl :: Text
