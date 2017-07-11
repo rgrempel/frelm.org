@@ -50,6 +50,7 @@ migrations =
     , createPackage
     , createModules
     , createLibrary
+    , createDependency
     ]
 
 migrateInitial :: MigrationCommand
@@ -373,4 +374,51 @@ createLibrary =
 
             CREATE INDEX package_library_idx
                 ON package (library);
+        |]
+
+createDependency :: MigrationCommand
+createDependency =
+    MigrationScript "create-dependency" $
+    encodeUtf8
+        [text|
+            CREATE TABLE dependency
+                ( id
+                    BIGSERIAL
+                    PRIMARY KEY
+
+                , package
+                    BIGINT
+                    NOT NULL
+                    CONSTRAINT dependency_package_fk
+                        REFERENCES package
+                        ON DELETE CASCADE
+
+                , library
+                    BIGINT
+                    NOT NULL
+                    CONSTRAINT dependency_library_fk
+                        REFERENCES library
+
+                , repo
+                    BIGINT
+                    NOT NULL
+                    CONSTRAINT dependency_repo_fk
+                        REFERENCES repos
+
+                , version
+                    SEMVER_RANGE
+                    NOT NULL
+
+                , CONSTRAINT depdenency_unique
+                    UNIQUE (package, library)
+                );
+
+            CREATE INDEX dependency_package_idx
+                ON dependency (package);
+
+            CREATE INDEX dependency_library_idx
+                ON dependency (library);
+
+            CREATE INDEX dependency_repo_idx
+                ON dependency (repo);
         |]

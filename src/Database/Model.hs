@@ -76,6 +76,13 @@ share
             license Text
             elmVersion VersionBounds
 
+        Dependency
+            package PackageId
+            library LibraryId
+            repo RepoId
+            version VersionBounds
+            UniqueDepdenency package library
+
         Library
             name Text
             UniqueLibrary name

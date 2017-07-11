@@ -12,6 +12,7 @@ import Control.Monad.Logger (LoggingT, runStdoutLoggingT)
 import Control.Monad.Trans.Resource (ResourceT, runResourceT)
 import Data.Aeson (eitherDecodeStrict)
 import Data.ElmPackage
+import Data.Map (traverseWithKey)
 import Data.SemVer (Version, fromText)
 import Data.Yaml.Config (loadYamlSettings, useEnv)
 import Database.Esqueleto
@@ -109,7 +110,7 @@ crawl :: WorkerT ()
 crawl =
     forever $ do
         checkTags
-        liftIO $ threadDelay $ 15 * 1000000
+        liftIO $ threadDelay $ 10 * 1000000
     -- Should probably have a "big" exception handler here that
     -- logs unexpected exceptions ... or something ...
 
@@ -226,6 +227,18 @@ checkNewTag repoId gitDir version tag = do
                             , packageModuleModuleId = moduleId
                             , packageModuleExposed = True
                             }
+                    void $
+                        flip traverseWithKey (elmPackageDependencies p) $ \libraryName dependencyVersion -> do
+                            dependencyLibrary <-
+                                either entityKey id <$> insertBy Library {..}
+                            let dependencyPackage = packageId
+                            let repoGitUrl =
+                                    "https://github.com/" <> libraryName <>
+                                    ".git"
+                            let repoSubmittedBy = Nothing
+                            dependencyRepo <-
+                                either entityKey id <$> insertBy Repo {..}
+                            insert_ Dependency {..}
                     pure packageId
             insert_
                 RepoVersion
