@@ -72,8 +72,13 @@ share
             version Version
             summary Text
             repository Text
+            library LibraryId Maybe
             license Text
             elmVersion VersionBounds
+
+        Library
+            name Text
+            UniqueLibrary name
 
         Module sql=modules
             name Text

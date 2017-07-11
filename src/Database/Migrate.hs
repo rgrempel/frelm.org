@@ -49,6 +49,7 @@ migrations =
     , createCloneError
     , createPackage
     , createModules
+    , createLibrary
     ]
 
 migrateInitial :: MigrationCommand
@@ -343,4 +344,33 @@ createModules =
 
             CREATE INDEX package_module_module_idx
                 ON package_module (module_id);
+        |]
+
+createLibrary :: MigrationCommand
+createLibrary =
+    MigrationScript "create-library" $
+    encodeUtf8
+        [text|
+            CREATE TABLE library
+                ( id
+                    BIGSERIAL
+                    PRIMARY KEY
+
+                , name
+                    VARCHAR
+                    NOT NULL
+
+                , CONSTRAINT library_name_unique
+                    UNIQUE (name)
+                );
+
+            ALTER TABLE package
+                ADD COLUMN library
+                    BIGINT,
+                ADD CONSTRAINT package_library_fk
+                    FOREIGN KEY (library)
+                    REFERENCES library;
+
+            CREATE INDEX package_library_idx
+                ON package (library);
         |]

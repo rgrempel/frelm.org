@@ -12,6 +12,7 @@ import Data.Aeson
 import Data.PersistSemVer ()
 import Data.SemVer (Version, fromText)
 import Data.VersionBounds
+import Network.URI
 import Text.Parsec as Parsec
 import Text.Parsec (char, spaces, string)
 
@@ -34,3 +35,8 @@ instance FromJSON ElmPackage where
             v .: "exposed-modules" <*>
             v .: "dependencies" <*>
             v .: "elm-version"
+
+elmPackageLibraryName :: ElmPackage -> Maybe Text
+elmPackageLibraryName package = do
+    uri <- (parseAbsoluteURI . unpack) $ elmPackageRepository package
+    stripSuffix ".git" (pack $ uriPath uri) >>= stripPrefix "/"
