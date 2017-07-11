@@ -20,6 +20,7 @@ import GHC.IO.Exception (ExitCode(..))
 import Import.Worker hiding ((<>))
 import LoadEnv (loadEnv, loadEnvFrom)
 import Options.Applicative
+import System.Directory (doesFileExist)
 import System.Exit (die)
 import System.FilePath ((</>))
 import System.IO.Temp (withSystemTempDirectory)
@@ -54,7 +55,8 @@ parseArgs = info sub fullDesc
              fullDesc <> progDesc "Add a new repository to the database.") <>
         command
             "migrate"
-            (info migrateOptions $ fullDesc <> progDesc "Run database migrations") <>
+            (info migrateOptions $
+             fullDesc <> progDesc "Run database migrations") <>
         command "crawl" (info crawlOptions $ fullDesc <> progDesc "Crawl")
     addRepoOptions = fmap AddRepo $ argument str $ metavar "REPOSITORY"
     migrateOptions = pure RunMigrations
@@ -186,19 +188,19 @@ checkNewTag repoId gitDir version tag = do
     case result of
         Left _ -> pure ()
         Right _ -> do
+            let elmPackageJson = gitDir </> "elm-package.json"
+            hasElmPackage <- liftIO $ doesFileExist elmPackageJson
             contents <-
-                liftIO $ tryIOError $ readFile $ gitDir </> "elm-package.json"
-            -- If can't read elm-package.json ... should record this somehow?
-            case contents of
-                Left _ -> pure ()
-                Right package ->
-                    insert_
-                        RepoVersion
-                        { repoVersionRepo = repoId
-                        , repoVersionTag = pack tag
-                        , repoVersionVersion = version
-                        , repoVersionPackage = pack package
-                        }
+                if hasElmPackage
+                    then liftIO $ (Just . pack) <$> readFile elmPackageJson
+                    else pure Nothing
+            insert_
+                RepoVersion
+                { repoVersionRepo = repoId
+                , repoVersionTag = pack tag
+                , repoVersionVersion = version
+                , repoVersionPackage = contents
+                }
 
 checkoutGitRepo ::
        MonadIO m

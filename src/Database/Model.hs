@@ -60,8 +60,8 @@ share
             repo RepoId
             tag Text
             version Version
-            package Text
-            -- TDOD: Use a JSON type?
+            -- If there is no elm-package.json, will be empty
+            package Text Maybe
 
             UniqueRepoVersion repo version
             deriving Eq Show
