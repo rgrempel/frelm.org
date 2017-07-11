@@ -47,6 +47,7 @@ migrations =
     , addPackageToRepoVersions
     , createTagCheck
     , createCloneError
+    , createPackage
     ]
 
 migrateInitial :: MigrationCommand
@@ -244,4 +245,50 @@ createCloneError =
 
             CREATE INDEX clone_error_repo_idx
                 ON clone_error (repo);
+        |]
+
+createPackage :: MigrationCommand
+createPackage =
+    MigrationScript "create-package" $
+    encodeUtf8
+        [text|
+            CREATE TYPE SEMVER_RANGE
+                AS RANGE ( subtype = SEMVER );
+
+            CREATE TABLE package
+                ( id
+                    BIGSERIAL
+                    PRIMARY KEY
+
+                , version
+                    SEMVER
+                    NOT NULL
+
+                , summary
+                    VARCHAR
+                    NOT NULL
+
+                , repository
+                    VARCHAR
+                    NOT NULL
+
+                , license
+                    VARCHAR
+                    NOT NULL
+
+                , elm_version
+                    SEMVER_RANGE
+                    NOT NULL
+                );
+
+            ALTER TABLE repo_version
+                ADD COLUMN decoded BIGINT,
+                ADD COLUMN decode_error VARCHAR,
+                ALTER COLUMN package DROP NOT NULL,
+                ADD CONSTRAINT repo_version_package_fk
+                    FOREIGN KEY (decoded)
+                    REFERENCES package;
+
+            CREATE INDEX repo_version_decoded_idx
+                ON repo_version (decoded);
         |]

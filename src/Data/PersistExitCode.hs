@@ -8,9 +8,10 @@
 
 module Data.PersistExitCode where
 
-import ClassyPrelude.Yesod
+import ClassyPrelude
 import Database.Persist (PersistValue(..))
-import Database.Persist.Sql (PersistFieldSql(..))
+import Database.Persist.Sql
+       (PersistField(..), PersistFieldSql(..), SqlType(..))
 import GHC.IO.Exception (ExitCode(..))
 
 instance PersistField ExitCode where

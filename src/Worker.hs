@@ -10,6 +10,8 @@ module Worker where
 
 import Control.Monad.Logger (LoggingT, runStdoutLoggingT)
 import Control.Monad.Trans.Resource (ResourceT, runResourceT)
+import Data.Aeson (eitherDecodeStrict)
+import Data.ElmPackage
 import Data.SemVer (Version, fromText)
 import Data.Yaml.Config (loadYamlSettings, useEnv)
 import Database.Esqueleto
@@ -138,6 +140,7 @@ checkRepoTags repo = do
             gitdir <- cloneGitRepo repo basedir
             forM_ gitdir $ \dir ->
                 forM_ newVersions $ uncurry $ checkNewTag (entityKey repo) dir
+    transactionSave
 
 fetchKnownVersions :: RepoId -> WorkerDB [Entity RepoVersion]
 fetchKnownVersions repoId =
@@ -188,18 +191,36 @@ checkNewTag repoId gitDir version tag = do
     case result of
         Left _ -> pure ()
         Right _ -> do
-            let elmPackageJson = gitDir </> "elm-package.json"
-            hasElmPackage <- liftIO $ doesFileExist elmPackageJson
-            contents <-
-                if hasElmPackage
-                    then liftIO $ (Just . pack) <$> readFile elmPackageJson
-                    else pure Nothing
+            (contents, decodedPackage, decodeError) <-
+                do let elmPackageJson = gitDir </> "elm-package.json"
+                   hasElmPackage <- liftIO $ doesFileExist elmPackageJson
+                   if hasElmPackage
+                       then do
+                           contents <- liftIO $ pack <$> readFile elmPackageJson
+                           case eitherDecodeStrict (encodeUtf8 contents) of
+                               Left err ->
+                                   pure (Just contents, Nothing, Just err)
+                               Right package ->
+                                   pure (Just contents, Just package, Nothing)
+                       else pure (Nothing, Nothing, Nothing)
+            packageId <-
+                forM decodedPackage $ \p ->
+                    insert
+                        Package
+                        { packageVersion = elmPackageVersion p
+                        , packageSummary = elmPackageSummary p
+                        , packageRepository = elmPackageRepository p
+                        , packageLicense = elmPackageLicense p
+                        , packageElmVersion = elmPackageElmVersion p
+                        }
             insert_
                 RepoVersion
                 { repoVersionRepo = repoId
                 , repoVersionTag = pack tag
                 , repoVersionVersion = version
                 , repoVersionPackage = contents
+                , repoVersionDecodeError = pack <$> decodeError
+                , repoVersionDecoded = packageId
                 }
 
 checkoutGitRepo ::

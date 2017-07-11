@@ -15,6 +15,7 @@ import ClassyPrelude
 import Data.PersistExitCode ()
 import Data.PersistSemVer ()
 import Data.SemVer (Version)
+import Data.VersionBounds
 import Database.Persist.TH
 import GHC.IO.Exception (ExitCode)
 
@@ -60,9 +61,17 @@ share
             repo RepoId
             tag Text
             version Version
-            -- If there is no elm-package.json, will be empty
             package Text Maybe
+            decodeError Text Maybe
+            decoded PackageId Maybe
 
             UniqueRepoVersion repo version
             deriving Eq Show
+
+        Package
+            version Version
+            summary Text
+            repository Text
+            license Text
+            elmVersion VersionBounds
     |]
