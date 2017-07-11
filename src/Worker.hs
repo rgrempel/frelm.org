@@ -13,6 +13,7 @@ import Control.Monad.Trans.Resource (ResourceT, runResourceT)
 import Data.Aeson (eitherDecodeStrict)
 import Data.ElmPackage
 import Data.Map (traverseWithKey)
+import Data.OfficialPackage
 import Data.SemVer (Version, fromText)
 import Data.Yaml.Config (loadYamlSettings, useEnv)
 import Database.Esqueleto
@@ -43,8 +44,9 @@ data Worker = Worker
 
 data Command
     = AddRepo String
-    | RunMigrations
     | Crawl
+    | RunMigrations
+    | Scrape
     deriving (Show)
 
 parseArgs :: ParserInfo Command
@@ -60,10 +62,14 @@ parseArgs = info sub fullDesc
             "migrate"
             (info migrateOptions $
              fullDesc <> progDesc "Run database migrations") <>
-        command "crawl" (info crawlOptions $ fullDesc <> progDesc "Crawl")
+        command "crawl" (info crawlOptions $ fullDesc <> progDesc "Crawl") <>
+        command
+            "scrape"
+            (info scrapeOptions $ fullDesc <> progDesc "Scrape packages")
     addRepoOptions = fmap AddRepo $ argument str $ metavar "REPOSITORY"
     migrateOptions = pure RunMigrations
     crawlOptions = pure Crawl
+    scrapeOptions = pure Scrape
 
 runWorkerDB :: WorkerDB a -> WorkerT a
 runWorkerDB workerDB = asks workerConnPool >>= runSqlPool workerDB
@@ -82,6 +88,7 @@ runWorker = do
                 MigrationSuccess -> pure ()
                 MigrationError err -> liftIO $ die err
         Crawl -> crawl
+        Scrape -> scrape
 
 -- | The main function for the worker.
 workerMain :: IO ()
@@ -296,3 +303,17 @@ cloneGitRepo repo toPath = do
                 , cloneErrorRan = ran
                 }
             pure Nothing
+
+scrape :: WorkerT ()
+scrape = do
+    result <- fetchOfficialPackages
+    case result of
+        Left err -> print err
+        Right packages ->
+            runWorkerDB $
+            forM_ packages $ \package -> do
+                let repoGitUrl =
+                        "https://github.com/" <> officialPackageName package <>
+                        ".git"
+                let repoSubmittedBy = Nothing
+                void $ insertBy Repo {..}
