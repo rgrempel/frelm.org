@@ -74,4 +74,14 @@ share
             repository Text
             license Text
             elmVersion VersionBounds
+
+        Module sql=modules
+            name Text
+            UniqueModule name
+
+        PackageModule
+            packageId PackageId
+            moduleId ModuleId
+            exposed Bool
+            UniquePackageModule packageId moduleId
     |]

@@ -48,6 +48,7 @@ migrations =
     , createTagCheck
     , createCloneError
     , createPackage
+    , createModules
     ]
 
 migrateInitial :: MigrationCommand
@@ -291,4 +292,55 @@ createPackage =
 
             CREATE INDEX repo_version_decoded_idx
                 ON repo_version (decoded);
+        |]
+
+createModules :: MigrationCommand
+createModules =
+    MigrationScript "create-modules" $
+    encodeUtf8
+        [text|
+            CREATE TABLE modules
+                ( id
+                    BIGSERIAL
+                    PRIMARY KEY
+
+                , name
+                    VARCHAR
+                    NOT NULL
+
+                , CONSTRAINT name_unique
+                    UNIQUE (name)
+                );
+
+            CREATE TABLE package_module
+                ( id
+                    BIGSERIAL
+                    PRIMARY KEY
+
+                , package_id
+                    BIGINT
+                    NOT NULL
+                    CONSTRAINT package_module_package_fk
+                        REFERENCES package
+                        ON DELETE CASCADE
+
+                , module_id
+                    BIGINT
+                    NOT NULL
+                    CONSTRAINT package_module_module_fk
+                        REFERENCES modules
+
+                , exposed
+                    BOOL
+                    NOT NULL
+
+                , CONSTRAINT package_module_unique
+                    UNIQUE (package_id, module_id)
+                );
+
+            CREATE INDEX package_module_package_idx
+                ON package_module (package_id);
+
+            CREATE INDEX package_module_module_idx
+                ON package_module (module_id);
         |]

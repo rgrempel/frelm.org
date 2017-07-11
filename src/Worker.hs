@@ -204,15 +204,26 @@ checkNewTag repoId gitDir version tag = do
                                    pure (Just contents, Just package, Nothing)
                        else pure (Nothing, Nothing, Nothing)
             packageId <-
-                forM decodedPackage $ \p ->
-                    insert
-                        Package
-                        { packageVersion = elmPackageVersion p
-                        , packageSummary = elmPackageSummary p
-                        , packageRepository = elmPackageRepository p
-                        , packageLicense = elmPackageLicense p
-                        , packageElmVersion = elmPackageElmVersion p
-                        }
+                forM decodedPackage $ \p -> do
+                    packageId <-
+                        insert
+                            Package
+                            { packageVersion = elmPackageVersion p
+                            , packageSummary = elmPackageSummary p
+                            , packageRepository = elmPackageRepository p
+                            , packageLicense = elmPackageLicense p
+                            , packageElmVersion = elmPackageElmVersion p
+                            }
+                    forM_ (elmPackageModules p) $ \moduleName -> do
+                        moduleId <-
+                            either entityKey id <$> insertBy Module {..}
+                        insert_
+                            PackageModule
+                            { packageModulePackageId = packageId
+                            , packageModuleModuleId = moduleId
+                            , packageModuleExposed = True
+                            }
+                    pure packageId
             insert_
                 RepoVersion
                 { repoVersionRepo = repoId
