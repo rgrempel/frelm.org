@@ -28,7 +28,9 @@ import System.Directory (doesFileExist)
 import System.Exit (die)
 import System.FilePath ((</>))
 import System.IO.Temp (withSystemTempDirectory)
-import System.Process (readProcessWithExitCode)
+import System.Process
+       (CreateProcess, env, proc, readCreateProcessWithExitCode,
+        readProcessWithExitCode)
 import Text.Parsec as Parsec
 
 type WorkerT = ReaderT Worker (ResourceT (LoggingT IO))
@@ -157,11 +159,11 @@ fetchKnownVersions repoId =
         where_ (version ^. RepoVersionRepo ==. val repoId)
         pure version
 
-fetchGitTags :: Entity Repo -> WorkerDB [(Version, String)]
-fetchGitTags repo = do
-    (exitCode, out, err) <-
-        liftIO $
-        readProcessWithExitCode
+fetchTagsProcess :: Entity Repo -> CreateProcess
+fetchTagsProcess repo = process {env = Just [("GIT_TERMINAL_PROMPT", "0")]}
+  where
+    process =
+        proc
             "git"
             [ "ls-remote"
             , "--tags"
@@ -169,7 +171,11 @@ fetchGitTags repo = do
             , "--refs"
             , unpack $ (repoGitUrl . entityVal) repo
             ]
-            ""
+
+fetchGitTags :: Entity Repo -> WorkerDB [(Version, String)]
+fetchGitTags repo = do
+    (exitCode, out, err) <-
+        liftIO $ readCreateProcessWithExitCode (fetchTagsProcess repo) ""
     ran <- liftIO getCurrentTime
     insert_
         TagCheck
