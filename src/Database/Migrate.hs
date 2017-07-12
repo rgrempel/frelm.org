@@ -51,6 +51,7 @@ migrations =
     , createModules
     , createLibrary
     , createDependency
+    , createPublishedVersion
     ]
 
 migrateInitial :: MigrationCommand
@@ -421,4 +422,35 @@ createDependency =
 
             CREATE INDEX dependency_repo_idx
                 ON dependency (repo);
+        |]
+
+createPublishedVersion :: MigrationCommand
+createPublishedVersion =
+    MigrationScript "create-published-version" $
+    encodeUtf8
+        [text|
+            CREATE TABLE published_version
+                ( id
+                    BIGSERIAL
+                    PRIMARY KEY
+
+                , library
+                    BIGINT
+                    NOT NULL
+                    CONSTRAINT published_version_library_fk
+                        REFERENCES library
+
+                , version
+                    SEMVER
+                    NOT NULL
+
+                , CONSTRAINT published_version_unique
+                    UNIQUE (library, version)
+                );
+
+            CREATE INDEX published_version_library_idx
+                ON dependency (library);
+
+            CREATE INDEX published_version_dependency_idx
+                ON dependency (version);
         |]

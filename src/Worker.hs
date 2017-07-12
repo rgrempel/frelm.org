@@ -319,8 +319,11 @@ scrape = do
         Right packages ->
             runWorkerDB $
             forM_ packages $ \package -> do
-                let repoGitUrl =
-                        "https://github.com/" <> officialPackageName package <>
-                        ".git"
+                let libraryName = officialPackageName package
+                let repoGitUrl = "https://github.com/" <> libraryName <> ".git"
                 let repoSubmittedBy = Nothing
                 void $ insertBy Repo {..}
+                publishedVersionLibrary <-
+                    either entityKey id <$> insertBy Library {..}
+                forM_ (officialPackageVersions package) $ \publishedVersionVersion ->
+                    void $ insertBy PublishedVersion {..}

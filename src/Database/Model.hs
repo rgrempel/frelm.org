@@ -87,6 +87,11 @@ share
             name Text
             UniqueLibrary name
 
+        PublishedVersion
+            library LibraryId
+            version Version
+            UniquePublishedVersion library version
+
         Module sql=modules
             name Text
             UniqueModule name
