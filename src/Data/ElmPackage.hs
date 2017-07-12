@@ -10,11 +10,9 @@ module Data.ElmPackage where
 import ClassyPrelude
 import Data.Aeson
 import Data.PersistSemVer ()
-import Data.SemVer (Version, fromText)
-import Data.VersionBounds
+import Data.Range
+import Data.SemVer (Version)
 import Network.URI
-import Text.Parsec as Parsec
-import Text.Parsec (char, spaces, string)
 
 data ElmPackage = ElmPackage
     { elmPackageVersion :: Version
@@ -22,8 +20,8 @@ data ElmPackage = ElmPackage
     , elmPackageRepository :: Text
     , elmPackageLicense :: Text
     , elmPackageModules :: [Text]
-    , elmPackageDependencies :: Map Text VersionBounds
-    , elmPackageElmVersion :: VersionBounds
+    , elmPackageDependencies :: Map Text (Range Version)
+    , elmPackageElmVersion :: Range Version
     } deriving (Eq, Show)
 
 instance FromJSON ElmPackage where

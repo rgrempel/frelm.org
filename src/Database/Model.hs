@@ -14,8 +14,8 @@ module Database.Model where
 import ClassyPrelude
 import Data.PersistExitCode ()
 import Data.PersistSemVer ()
+import Data.Range
 import Data.SemVer (Version)
-import Data.VersionBounds
 import Database.Persist.TH
 import GHC.IO.Exception (ExitCode)
 
@@ -74,13 +74,13 @@ share
             repository Text
             library LibraryId Maybe
             license Text
-            elmVersion VersionBounds
+            elmVersion (Range Version)
 
         Dependency
             package PackageId
             library LibraryId
             repo RepoId
-            version VersionBounds
+            version (Range Version)
             UniqueDepdenency package library
 
         Library
