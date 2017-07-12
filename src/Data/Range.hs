@@ -38,8 +38,7 @@ elmPackageRange subparser = do
     pure $ Range (lowerConstructor lowerBound) (upperConstructor upperBound)
 
 parseElmComparator :: Parsec Text () (a -> Bound a)
-parseElmComparator =
-    (const Inclusive <$> string "<=") <|> (const Exclusive <$> char '<')
+parseElmComparator = char '<' >> option Exclusive (const Inclusive <$> char '=')
 
 -- | Parses the Postgres way of representing a range
 postgresRange :: Parsec Text () a -> Parsec Text () (Range a)

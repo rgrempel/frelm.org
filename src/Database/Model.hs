@@ -74,7 +74,7 @@ share
             repository Text
             library LibraryId Maybe
             license Text
-            elmVersion (Range Version)
+            elmVersion (Range Version) Maybe
 
         Dependency
             package PackageId

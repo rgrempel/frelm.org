@@ -1,6 +1,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -21,18 +22,22 @@ data ElmPackage = ElmPackage
     , elmPackageLicense :: Text
     , elmPackageModules :: [Text]
     , elmPackageDependencies :: Map Text (Range Version)
-    , elmPackageElmVersion :: Range Version
+    -- Not all pacakges specify this ... perhaps it wasn't
+    -- required at one point?
+    , elmPackageElmVersion :: Maybe (Range Version)
     } deriving (Eq, Show)
 
 instance FromJSON ElmPackage where
     parseJSON =
-        withObject "Elm Package" $ \v ->
-            ElmPackage <$> v .: "version" <*> v .: "summary" <*>
-            v .: "repository" <*>
-            v .: "license" <*>
-            v .: "exposed-modules" <*>
-            v .: "dependencies" <*>
-            v .: "elm-version"
+        withObject "Elm Package" $ \v -> do
+            elmPackageVersion <- v .: "version"
+            elmPackageSummary <- v .: "summary"
+            elmPackageRepository <- v .: "repository"
+            elmPackageLicense <- v .: "license"
+            elmPackageModules <- v .: "exposed-modules"
+            elmPackageDependencies <- v .: "dependencies"
+            elmPackageElmVersion <- v .:? "elm-version"
+            pure ElmPackage {..}
 
 elmPackageLibraryName :: ElmPackage -> Maybe Text
 elmPackageLibraryName package = do

@@ -52,6 +52,7 @@ migrations =
     , createLibrary
     , createDependency
     , createPublishedVersion
+    , allowNullElmVersion
     ]
 
 migrateInitial :: MigrationCommand
@@ -453,4 +454,14 @@ createPublishedVersion =
 
             CREATE INDEX published_version_dependency_idx
                 ON dependency (version);
+        |]
+
+allowNullElmVersion :: MigrationCommand
+allowNullElmVersion =
+    MigrationScript "allow-null-elm-version" $
+    encodeUtf8
+        [text|
+            ALTER TABLE package
+                ALTER COLUMN elm_version
+                    DROP NOT NULL;
         |]
