@@ -12,6 +12,7 @@ import Control.Monad.Logger (LoggingT, runStdoutLoggingT)
 import Control.Monad.Trans.Resource (ResourceT, runResourceT)
 import Data.Aeson (eitherDecodeStrict)
 import Data.ElmPackage
+import Data.List (nub)
 import Data.Map (traverseWithKey)
 import Data.OfficialPackage
 import Data.SemVer (Version, fromText)
@@ -232,7 +233,7 @@ checkNewTag repoId gitDir version tag = do
                             , packageLicense = elmPackageLicense p
                             , packageElmVersion = elmPackageElmVersion p
                             }
-                    forM_ (elmPackageModules p) $ \moduleName -> do
+                    forM_ (nub $ elmPackageModules p) $ \moduleName -> do
                         moduleId <- either entityKey id <$> insertBy Module {..}
                         insert_
                             PackageModule
