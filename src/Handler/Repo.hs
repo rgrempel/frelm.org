@@ -16,16 +16,24 @@ getRepoR repoId = do
         runDB $ do
             r <- get404 repoId
             v <-
-                selectList [RepoVersionRepo ==. repoId] [Asc RepoVersionVersion]
+                selectList
+                    [RepoVersionRepo ==. repoId]
+                    [Desc RepoVersionVersion]
             pure (r, v)
     defaultLayout
         [whamlet|
-            <pre>#{show repo}
-
-            <h4>Versions
-                $forall Entity versionId version <- versions
-                    <div>
-                        <a href=@{RepoVersionR versionId}>#{toText $ repoVersionVersion version}
+            <div .container>
+                <div .row>
+                    <div .col-lg-12>
+                        <h2>#{repoGitUrl repo}
+                        <p>
+                            Here's a list of the tags we know about in this repo.
+                            We look for tags that are formatted as a Semantic Version ...
+                            for instance, 1.0.0. We check for new tags about once a day.
+                        <ul>
+                            $forall Entity versionId version <- versions
+                                <li>
+                                    <a href=@{RepoVersionR versionId}>#{repoVersionTag version}
         |]
 
 getRepoVersionR :: RepoVersionId -> Handler Html
