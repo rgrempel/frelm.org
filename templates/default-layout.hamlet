@@ -34,7 +34,8 @@
     $maybe msg <- mmsg
       <div .alert.alert-info #message>#{msg}
 
-^{widget}
+<div .container>
+    ^{widget}
 
 <!-- Footer -->
 <footer .footer>
