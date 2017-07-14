@@ -74,6 +74,8 @@ mkYesodData
 
         / HomeR GET
 
+        /module ModulesR GET
+
         /repo ReposR GET POST
         /repo/#RepoId RepoR GET
 
@@ -141,6 +143,12 @@ instance Yesod App where
                       }
                 , NavbarLeft
                       MenuItem
+                      { menuItemLabel = "Modules"
+                      , menuItemRoute = ModulesR
+                      , menuItemAccessCallback = True
+                      }
+                , NavbarLeft
+                      MenuItem
                       { menuItemLabel = "Profile"
                       , menuItemRoute = ProfileR
                       , menuItemAccessCallback = isJust muser
@@ -183,6 +191,7 @@ instance Yesod App where
     isAuthorized RobotsR _ = return Authorized
     isAuthorized (StaticR _) _ = return Authorized
     isAuthorized ProfileR _ = isAuthenticated
+    isAuthorized ModulesR _ = pure Authorized
     isAuthorized (RepoVersionR _) _ = return Authorized
     isAuthorized (RepoR _) write = authorizeWrite write
     isAuthorized ReposR write = authorizeWrite write
@@ -228,6 +237,7 @@ instance YesodBreadcrumbs App where
     breadcrumb HomeR = pure ("Home", Nothing)
     breadcrumb (AuthR _) = pure ("Login", Nothing)
     breadcrumb ProfileR = pure ("Profile", Nothing)
+    breadcrumb ModulesR = pure ("Modules", Nothing)
     breadcrumb ReposR = pure ("Repositories", Nothing)
     breadcrumb (RepoR repoId) =
         runDB $ do
