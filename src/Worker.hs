@@ -51,6 +51,7 @@ data Worker = Worker
 data Command
     = AddRepo String
     | Crawl
+    | RecheckRepo Int64
     | RecheckTags
     | ReparsePackages
     | RunMigrations
@@ -74,11 +75,16 @@ parseArgs = info sub fullDesc
         command
             "recheck-tags"
             (info recheckTagsOptions $ fullDesc <> progDesc "Recheck tags") <>
+        command
+            "recheck-repo"
+            (info recheckRepoOptions $
+             fullDesc <> progDesc "Recheck a repo with the specified ID.") <>
         command "reparse" (info reparseOptions $ fullDesc <> progDesc "Reparse") <>
         command
             "scrape"
             (info scrapeOptions $ fullDesc <> progDesc "Scrape packages")
     addRepoOptions = fmap AddRepo $ argument str $ metavar "REPOSITORY"
+    recheckRepoOptions = fmap RecheckRepo $ argument auto $ metavar "REPO_ID"
     migrateOptions = pure RunMigrations
     crawlOptions = pure Crawl
     recheckTagsOptions = pure RecheckTags
@@ -95,6 +101,7 @@ runWorker = do
         AddRepo repo ->
             runWorkerDB $
             insert_ Repo {repoGitUrl = pack repo, repoSubmittedBy = Nothing}
+        RecheckRepo repoId -> recheckRepo (toSqlKey repoId)
         RecheckTags -> recheckTags
         RunMigrations -> do
             dbconf <- asks (workerDatabaseConf . workerSettings)
@@ -171,6 +178,17 @@ checkRepoTags repo = do
             forM_ gitdir $ \dir ->
                 forM_ newVersions $ checkNewTag (entityKey repo) dir
     transactionSave
+
+recheckRepo :: RepoId -> WorkerT ()
+recheckRepo repoId =
+    runWorkerDB $ do
+        repo <- getJustEntity repoId
+        fetchedVersions <- fetchGitTags repo
+        unless (null fetchedVersions) $
+            withSystemTempDirectory "git-clone" $ \basedir -> do
+                gitdir <- cloneGitRepo repo basedir
+                forM_ gitdir $ \dir ->
+                    forM_ fetchedVersions $ checkNewTag (entityKey repo) dir
 
 recheckTags :: WorkerT ()
 recheckTags =
