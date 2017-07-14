@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -16,7 +17,7 @@ import Text.Jasmine (minifym)
 
 -- Used only when in "auth-dummy-login" setting is enabled.
 import Yesod.Auth.Dummy
-
+import Yesod.Auth.Message (AuthMessage(LoginTitle))
 import Yesod.Auth.OAuth2.Github
 import Yesod.Auth.OAuth2.Gitlab
 
@@ -284,6 +285,28 @@ instance YesodAuth App where
       where
         extraAuthPlugins = [authDummy | appAuthDummyLogin $ appSettings app]
     authHttpManager = getHttpManager
+    loginHandler = do
+        tp <- getRouteToParent
+        lift $
+            authLayout $ do
+                setTitleI LoginTitle
+                master <- getYesod
+                pluginClass <- newIdent
+                pluginNameBase <- newIdent
+                [whamlet|
+                    <div .container>
+                        <div .row>
+                            $forall plugin <- authPlugins master
+                                <div class="col-md-4 #{pluginClass}">
+                                    ^{apLogin plugin tp}
+                |]
+                toWidget
+                    [lucius|
+                        div.#{pluginClass} {
+                            font-weight: bold;
+                            margin-top: 12px;
+                        }
+                    |]
 
 credsToUser :: Creds m -> Maybe User
 credsToUser Creds {..} =
