@@ -30,10 +30,12 @@ getRepoR repoId = do
                             Here's a list of the tags we know about in this repo.
                             We look for tags that are formatted as a Semantic Version ...
                             for instance, 1.0.0. We check for new tags about once a day.
-                        <ul>
+                        <table .table .table-striped .table-responsive>
                             $forall Entity versionId version <- versions
-                                <li>
-                                    <a href=@{RepoVersionR versionId}>#{repoVersionTag version}
+                                <tr>
+                                    <td>
+                                        <a href=@{RepoVersionR versionId}>#{repoVersionTag version}
+                                    <td>#{tshow $ repoVersionCommittedAt version}
         |]
 
 getRepoVersionR :: RepoVersionId -> Handler Html
