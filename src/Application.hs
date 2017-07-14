@@ -50,6 +50,7 @@ import System.Environment (getEnv)
 -- Don't forget to add new modules to your cabal file!
 import Handler.Common
 import Handler.Home
+import Handler.Library
 import Handler.Module
 import Handler.Profile
 import Handler.Repo
