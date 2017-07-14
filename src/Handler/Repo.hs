@@ -22,33 +22,36 @@ getRepoR repoId = do
             pure (r, v)
     defaultLayout
         [whamlet|
-            <div .row>
-                <div .col-lg-12>
-                    <h2>#{repoGitUrl repo}
-                    <p>
-                        Here's a list of the tags we know about in this repo.
-                        We look for tags that are formatted as a Semantic Version ...
-                        for instance, 1.0.0. We check for new tags about once a day.
-                    <ul>
-                        $forall Entity versionId version <- versions
-                            <li>
-                                <a href=@{RepoVersionR versionId}>#{repoVersionTag version}
+            <div .container>
+                <div .row>
+                    <div .col-lg-12>
+                        <h2>#{repoGitUrl repo}
+                        <p>
+                            Here's a list of the tags we know about in this repo.
+                            We look for tags that are formatted as a Semantic Version ...
+                            for instance, 1.0.0. We check for new tags about once a day.
+                        <ul>
+                            $forall Entity versionId version <- versions
+                                <li>
+                                    <a href=@{RepoVersionR versionId}>#{repoVersionTag version}
         |]
 
 getRepoVersionR :: RepoVersionId -> Handler Html
 getRepoVersionR repoVersionId = do
-    (repoVersion, repo) <-
+    (repoVersion, repo)
         -- TODO: Should do this in one query
+         <-
         runDB $ do
             v <- get404 repoVersionId
             r <- get404 (repoVersionRepo v)
             pure (v, r)
     defaultLayout
         [whamlet|
-            <div .row>
-                <div .col-lg-12>
-                    <h2>#{repoGitUrl repo}
-                    <h3>Tag: #{repoVersionTag repoVersion}
+            <div .container>
+                <div .row>
+                    <div .col-lg-12>
+                        <h2>#{repoGitUrl repo}
+                        <h3>Tag: #{repoVersionTag repoVersion}
         |]
 
 data SubmissionForm = SubmissionForm
@@ -66,35 +69,36 @@ getReposR = do
     repos <- runDB $ selectList [] [Asc RepoGitUrl]
     defaultLayout
         [whamlet|
-            <div .row>
-                <div .col-sm-12>
-                    <h3>Repositories
-            <div .row>
-                <div .col-md-6>
-                    <p>
-                        This is a list of all the repositories which
-                        we check for new package versions.
-                    <p>
-                        If you have published a package to the official Elm package
-                        manager, then your repository should appear here automatically
-                        (eventually -- we check about once per day).
-                    <p>
-                        If you'd like to add a repository here manually, you can
-                        do so using the form below, by submitting a Git URL that
-                        looks something like the examples. That is the URL
-                        we will use to fetch your package via operations such
-                        as `git ls-remote` and `git clone`.
+            <div .container>
+                <div .row>
+                    <div .col-sm-12>
+                        <h3>Repositories
+                <div .row>
+                    <div .col-md-6>
+                        <p>
+                            This is a list of all the repositories which
+                            we check for new package versions.
+                        <p>
+                            If you have published a package to the official Elm package
+                            manager, then your repository should appear here automatically
+                            (eventually -- we check about once per day).
+                        <p>
+                            If you'd like to add a repository here manually, you can
+                            do so using the form below, by submitting a Git URL that
+                            looks something like the examples. That is the URL
+                            we will use to fetch your package via operations such
+                            as `git ls-remote` and `git clone`.
 
-                <div .col-md-6>
-                    <form method=post action=@{ReposR} enctype=#{enctype}>
-                        ^{widget}
-                        <button type="submit" .btn .btn-default>Submit Git URL
-                    <p>
-            <div .row>
-                <div .col-lg-12>
-                    $forall Entity repoId repo <- repos
-                        <div>
-                            <a href=@{RepoR repoId}>#{repoGitUrl repo}
+                    <div .col-md-6>
+                        <form method=post action=@{ReposR} enctype=#{enctype}>
+                            ^{widget}
+                            <button type="submit" .btn .btn-default>Submit Git URL
+                        <p>
+                <div .row>
+                    <div .col-lg-12>
+                        $forall Entity repoId repo <- repos
+                            <div>
+                                <a href=@{RepoR repoId}>#{repoGitUrl repo}
         |]
 
 postReposR :: Handler Html

@@ -34,11 +34,4 @@
     $maybe msg <- mmsg
       <div .alert.alert-info #message>#{msg}
 
-<div .container>
-    ^{widget}
-
-<!-- Footer -->
-<footer .footer>
-    <div .container>
-        <p .text-muted>
-            #{appCopyright $ appSettings master}
+^{widget}
