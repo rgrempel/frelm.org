@@ -3,12 +3,13 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Worker where
 
-import Control.Monad.Logger (LoggingT, runStdoutLoggingT)
+import Control.Monad.Logger (LoggingT, logError, runStdoutLoggingT)
 import Control.Monad.Trans.Resource (ResourceT, runResourceT)
 import Data.Aeson (eitherDecodeStrict)
 import Data.ElmPackage
@@ -16,9 +17,11 @@ import Data.List (nub)
 import Data.Map (traverseWithKey)
 import Data.OfficialPackage
 import Data.SemVer (Version, fromText)
+import Data.Time.ISO8601
 import Data.Yaml.Config (loadYamlSettings, useEnv)
 import Database.Esqueleto
 import Database.Migrate
+import qualified Database.Persist as P
 import Database.Persist.Postgresql
        (createPostgresqlPool, pgConnStr, pgPoolSize)
 import GHC.IO.Exception (ExitCode(..))
@@ -48,6 +51,7 @@ data Worker = Worker
 data Command
     = AddRepo String
     | Crawl
+    | RecheckTags
     | ReparsePackages
     | RunMigrations
     | Scrape
@@ -67,6 +71,9 @@ parseArgs = info sub fullDesc
             (info migrateOptions $
              fullDesc <> progDesc "Run database migrations") <>
         command "crawl" (info crawlOptions $ fullDesc <> progDesc "Crawl") <>
+        command
+            "recheck-tags"
+            (info recheckTagsOptions $ fullDesc <> progDesc "Recheck tags") <>
         command "reparse" (info reparseOptions $ fullDesc <> progDesc "Reparse") <>
         command
             "scrape"
@@ -74,6 +81,7 @@ parseArgs = info sub fullDesc
     addRepoOptions = fmap AddRepo $ argument str $ metavar "REPOSITORY"
     migrateOptions = pure RunMigrations
     crawlOptions = pure Crawl
+    recheckTagsOptions = pure RecheckTags
     reparseOptions = pure ReparsePackages
     scrapeOptions = pure Scrape
 
@@ -87,6 +95,7 @@ runWorker = do
         AddRepo repo ->
             runWorkerDB $
             insert_ Repo {repoGitUrl = pack repo, repoSubmittedBy = Nothing}
+        RecheckTags -> recheckTags
         RunMigrations -> do
             dbconf <- asks (workerDatabaseConf . workerSettings)
             result <- liftIO $ migrateSchema $ pgConnStr dbconf
@@ -153,21 +162,32 @@ neverCheckedForTags =
 
 checkRepoTags :: Entity Repo -> WorkerDB ()
 checkRepoTags repo = do
-    knownVersions <-
-        fmap (repoVersionVersion . entityVal) <$>
-        fetchKnownVersions (entityKey repo)
+    knownVersions <- fetchKnownVersions (entityKey repo)
     fetchedVersions <- fetchGitTags repo
-    let newVersions =
-            filter (\a -> fst a `notElem` knownVersions) fetchedVersions
+    let newVersions = filter (`notElem` knownVersions) fetchedVersions
     unless (null newVersions) $
         withSystemTempDirectory "git-clone" $ \basedir -> do
             gitdir <- cloneGitRepo repo basedir
             forM_ gitdir $ \dir ->
-                forM_ newVersions $ uncurry $ checkNewTag (entityKey repo) dir
+                forM_ newVersions $ checkNewTag (entityKey repo) dir
     transactionSave
 
-fetchKnownVersions :: RepoId -> WorkerDB [Entity RepoVersion]
+recheckTags :: WorkerT ()
+recheckTags =
+    runWorkerDB $ do
+        repos <- select $ from pure
+        forM_ repos $ \repo -> do
+            fetchedVersions <- fetchGitTags repo
+            unless (null fetchedVersions) $
+                withSystemTempDirectory "git-clone" $ \basedir -> do
+                    gitdir <- cloneGitRepo repo basedir
+                    forM_ gitdir $ \dir ->
+                        forM_ fetchedVersions $ checkNewTag (entityKey repo) dir
+            transactionSave
+
+fetchKnownVersions :: RepoId -> WorkerDB [GitTag]
 fetchKnownVersions repoId =
+    fmap (fmap (toGitTag . entityVal)) $
     select $
     from $ \version -> do
         where_ (version ^. RepoVersionRepo ==. val repoId)
@@ -186,7 +206,7 @@ fetchTagsProcess repo = process {env = Just [("GIT_TERMINAL_PROMPT", "0")]}
             , unpack $ (repoGitUrl . entityVal) repo
             ]
 
-fetchGitTags :: Entity Repo -> WorkerDB [(Version, String)]
+fetchGitTags :: Entity Repo -> WorkerDB [GitTag]
 fetchGitTags repo = do
     (exitCode, out, err) <-
         liftIO $ readCreateProcessWithExitCode (fetchTagsProcess repo) ""
@@ -199,25 +219,36 @@ fetchGitTags repo = do
         , tagCheckRan = ran
         , tagCheckRepo = entityKey repo
         }
-    pure $ (rights . fmap (parse parseTagAndVersion "line") . lines) out
+    pure $ (rights . fmap (parse parseTag "line") . lines) out
 
-parseTagAndVersion :: Parsec String () (Version, String)
-parseTagAndVersion = sha40 *> tab *> parseTag
-  where
-    sha40 = Parsec.count 40 Parsec.hexDigit
-    parseTag = do
-        tag <- string "refs/tags/" *> Parsec.many anyChar <* eof
-        case fromText $ pack tag of
-            Right version -> pure (version, tag)
-            Left err -> unexpected err
+data GitTag = GitTag
+    { gitTagSha :: Text
+    , gitTagTag :: Text
+    , gitTagVersion :: Version
+    } deriving (Eq)
 
-checkNewTag :: Key Repo -> FilePath -> Version -> String -> WorkerDB ()
-checkNewTag repoId gitDir version tag = do
-    result <- checkoutGitRepo gitDir tag
-    -- TODO: Track the error somehow? We don't really expect
-    -- errors from checkoutGitRepo
+toGitTag :: RepoVersion -> GitTag
+toGitTag r =
+    GitTag
+    { gitTagSha = repoVersionSha r
+    , gitTagTag = repoVersionTag r
+    , gitTagVersion = repoVersionVersion r
+    }
+
+parseTag :: Parsec String () GitTag
+parseTag = do
+    gitTagSha <- pack <$> Parsec.many Parsec.hexDigit
+    void tab
+    gitTagTag <- fmap pack $ string "refs/tags/" *> Parsec.many anyChar <* eof
+    case fromText gitTagTag of
+        Right gitTagVersion -> pure GitTag {..}
+        Left err -> unexpected err
+
+checkNewTag :: Key Repo -> FilePath -> GitTag -> WorkerDB ()
+checkNewTag repoId gitDir gitTag = do
+    result <- checkoutGitRepo gitDir (unpack $ gitTagTag gitTag)
     case result of
-        Left _ -> pure ()
+        Left err -> void $ $(logError) (tshow err)
         Right _ -> do
             contents <-
                 do let elmPackageJson = gitDir </> "elm-package.json"
@@ -225,24 +256,34 @@ checkNewTag repoId gitDir version tag = do
                    if hasElmPackage
                        then liftIO $ Just <$> readFile elmPackageJson
                        else pure Nothing
-            repoVersion <-
-                insertEntity
-                    RepoVersion
-                    { repoVersionRepo = repoId
-                    , repoVersionTag = pack tag
-                    , repoVersionVersion = version
-                    , repoVersionPackage = contents
-                    , repoVersionDecodeError = Nothing
-                    , repoVersionDecoded = Nothing
-                    }
-            decodePackageJSON repoVersion
+            committedAt <- tagCommittedAt gitDir (unpack $ gitTagSha gitTag)
+            case committedAt of
+                Left err2 -> void $ $(logError) (tshow err2)
+                Right committed -> do
+                    repoVersion <-
+                        upsert
+                            RepoVersion
+                            { repoVersionRepo = repoId
+                            , repoVersionVersion = gitTagVersion gitTag
+                            , repoVersionSha = gitTagSha gitTag
+                            , repoVersionTag = gitTagTag gitTag
+                            , repoVersionPackage = contents
+                            , repoVersionCommittedAt = committed
+                            , repoVersionDecodeError = Nothing
+                            , repoVersionDecoded = Nothing
+                            }
+                            [ RepoVersionTag P.=. gitTagTag gitTag
+                            , RepoVersionSha P.=. gitTagSha gitTag
+                            , RepoVersionPackage P.=. contents
+                            , RepoVersionCommittedAt P.=. committed
+                            ]
+                    decodePackageJSON repoVersion
 
+-- If we couldn't decode, then we just record the error
 decodePackageJSON :: Entity RepoVersion -> WorkerDB ()
 decodePackageJSON repoVersion =
     forM_ ((repoVersionPackage . entityVal) repoVersion) $ \contents ->
-        case eitherDecodeStrict (encodeUtf8 contents)
-            -- If we couldn't decode, then we just record the error
-              of
+        case eitherDecodeStrict (encodeUtf8 contents) of
             Left err ->
                 update $ \p -> do
                     set
@@ -297,6 +338,38 @@ decodePackageJSON repoVersion =
                         , RepoVersionDecodeError =. val Nothing
                         ]
                     where_ $ r ^. RepoVersionId ==. val (entityKey repoVersion)
+
+tagCommittedAt ::
+       MonadIO m
+    => FilePath
+    -> String
+    -> m (Either (ExitCode, String, String) UTCTime)
+tagCommittedAt gitDir sha = do
+    (exitCode, out, err) <-
+        liftIO $
+        readProcessWithExitCode
+            "git"
+            ["-C", gitDir, "show", "-s", "--format=%cI", sha]
+            ""
+    pure $
+        case exitCode of
+            ExitSuccess ->
+                case (parseISO8601 . lastString . lines) out of
+                    Just utcTime -> Right utcTime
+                    Nothing ->
+                        Left
+                            ( ExitFailure 1
+                            , (lastString . lines) out
+                            , "parseISO8601 failed")
+            ExitFailure _ -> Left (exitCode, out, err)
+
+lastString :: [String] -> String
+lastString = go ""
+  where
+    go acc v =
+        case v of
+            a:b -> go a b
+            [] -> acc
 
 checkoutGitRepo ::
        MonadIO m

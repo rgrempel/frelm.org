@@ -53,6 +53,9 @@ migrations =
     , createDependency
     , createPublishedVersion
     , allowNullElmVersion
+    , addCommittedAtToRepoVersion
+    , addDefaultForSha
+    , addDefaultForCommittedAt
     ]
 
 migrateInitial :: MigrationCommand
@@ -464,4 +467,39 @@ allowNullElmVersion =
             ALTER TABLE package
                 ALTER COLUMN elm_version
                     DROP NOT NULL;
+        |]
+
+addCommittedAtToRepoVersion :: MigrationCommand
+addCommittedAtToRepoVersion =
+    MigrationScript "add-commmited_at-to-repo_version" $
+    encodeUtf8
+        [text|
+            ALTER TABLE repo_version
+                ADD COLUMN committed_at TIMESTAMPTZ,
+                ADD COLUMN sha VARCHAR;
+
+            CREATE INDEX repo_version_committed_at_idx
+                ON repo_version (committed_at);
+        |]
+
+addDefaultForSha :: MigrationCommand
+addDefaultForSha =
+    MigrationScript "add-default-for-sha" $
+    encodeUtf8
+        [text|
+            UPDATE repo_version
+                SET sha = '';
+            ALTER TABLE repo_version
+                ALTER COLUMN sha SET NOT NULL;
+        |]
+
+addDefaultForCommittedAt :: MigrationCommand
+addDefaultForCommittedAt =
+    MigrationScript "add-default-for-committed-at" $
+    encodeUtf8
+        [text|
+            UPDATE repo_version
+                SET committed_at = NOW();
+            ALTER TABLE repo_version
+                ALTER COLUMN committed_at SET NOT NULL;
         |]

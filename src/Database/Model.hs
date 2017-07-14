@@ -60,6 +60,8 @@ share
         RepoVersion
             repo RepoId
             tag Text
+            sha Text
+            committedAt UTCTime
             version Version
             package Text Maybe
             decodeError Text Maybe
