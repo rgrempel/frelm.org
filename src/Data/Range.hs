@@ -42,15 +42,18 @@ parseElmComparator = char '<' >> option Exclusive (const Inclusive <$> char '=')
 
 -- | Parses the Postgres way of representing a range
 postgresRange :: Parsec Text () a -> Parsec Text () (Range a)
-postgresRange subparser = do
-    lowerConstructor <-
-        (const Inclusive <$> char '[') <|> (const Exclusive <$> char '(')
-    lowerBound <- subparser
-    void $ char ','
-    upperBound <- subparser
-    upperConstructor <-
-        (const Inclusive <$> char ']') <|> (const Exclusive <$> char ')')
-    pure $ Range (lowerConstructor lowerBound) (upperConstructor upperBound)
+postgresRange subparser = parseEmpty <|> parseRange
+  where
+    parseEmpty = const (Range Unspecified Unspecified) <$> string "empty"
+    parseRange = do
+        lowerConstructor <-
+            (const Inclusive <$> char '[') <|> (const Exclusive <$> char '(')
+        lowerBound <- subparser
+        void $ char ','
+        upperBound <- subparser
+        upperConstructor <-
+            (const Inclusive <$> char ']') <|> (const Exclusive <$> char ')')
+        pure $ Range (lowerConstructor lowerBound) (upperConstructor upperBound)
 
 makePersistValue :: (a -> ByteString) -> Range a -> PersistValue
 makePersistValue toByteString (Range lowerBound upperBound) =
