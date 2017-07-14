@@ -221,10 +221,23 @@ authorizeWrite write =
 
 -- Define breadcrumbs.
 instance YesodBreadcrumbs App where
-    breadcrumb HomeR = return ("Home", Nothing)
-    breadcrumb (AuthR _) = return ("Login", Just HomeR)
-    breadcrumb ProfileR = return ("Profile", Just HomeR)
-    breadcrumb _ = return ("home", Nothing)
+    breadcrumb (StaticR _) = pure ("Static", Nothing)
+    breadcrumb FaviconR = pure ("Favicon", Nothing)
+    breadcrumb RobotsR = pure ("Robots", Nothing)
+    breadcrumb HomeR = pure ("Home", Nothing)
+    breadcrumb (AuthR _) = pure ("Login", Nothing)
+    breadcrumb ProfileR = pure ("Profile", Nothing)
+    breadcrumb ReposR = pure ("Repositories", Nothing)
+    breadcrumb (RepoR repoId) =
+        runDB $ do
+            repoUrl <- maybe "Unknown repository" repoGitUrl <$> get repoId
+            pure (repoUrl, Just ReposR)
+    breadcrumb (RepoVersionR versionId) =
+        runDB $ do
+            repoVersion <- get versionId
+            pure
+                ( maybe "Unknown Version" repoVersionTag repoVersion
+                , (RepoR . repoVersionRepo) <$> repoVersion)
 
 -- How to run database actions.
 instance YesodPersist App where
