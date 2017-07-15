@@ -28,8 +28,6 @@ import Import.App
 
 import Control.Monad.Logger (liftLoc, runLoggingT)
 import Database.Persist.Postgresql
-       (createPostgresqlPool, pgConnStr, pgPoolSize)
-
 import Language.Haskell.TH.Syntax (qLocation)
 import Network.Wai (Middleware)
 import Network.Wai.Handler.Warp

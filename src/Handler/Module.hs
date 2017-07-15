@@ -8,6 +8,7 @@
 module Handler.Module where
 
 import Data.SemVer (toText)
+import Database.Persist.Sql
 import Import.App
 
 getModulesR :: Handler Html

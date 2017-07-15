@@ -8,8 +8,8 @@
 module Handler.Recent where
 
 import Data.SemVer (toText)
-import Database.Esqueleto as E
-import Import.App
+import Database.Esqueleto
+import Import.App hiding (on)
 
 getRecentR :: Handler Html
 getRecentR = do
@@ -18,9 +18,9 @@ getRecentR = do
         select $
         distinct $
         from $ \(repoVersion `InnerJoin` package `InnerJoin` library) -> do
-            E.on (package ^. PackageLibrary E.==. just (library ^. LibraryId))
-            E.on
-                (repoVersion ^. RepoVersionDecoded E.==.
+            on (package ^. PackageLibrary ==. just (library ^. LibraryId))
+            on
+                (repoVersion ^. RepoVersionDecoded ==.
                  just (package ^. PackageId))
             orderBy [desc $ repoVersion ^. RepoVersionCommittedAt]
             limit 1000

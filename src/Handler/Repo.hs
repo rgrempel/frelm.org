@@ -8,6 +8,7 @@
 module Handler.Repo where
 
 import Data.SemVer (toText)
+import Database.Persist.Sql
 import Import.App
 
 getRepoR :: RepoId -> Handler Html
