@@ -53,6 +53,7 @@ import Handler.Home
 import Handler.Library
 import Handler.Module
 import Handler.Profile
+import Handler.Recent
 import Handler.Repo
 
 import System.Exit (die)
