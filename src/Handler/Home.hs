@@ -43,7 +43,7 @@ getHomeR = do
                                 If you're looking for packages, we keep track
                                 of a few things that the official Elm web-site
                                 doesn't (at leat, at time of writing). For
-                                instance, we can show you the packagest that
+                                instance, we can show you the packages that
                                 have been most recently updated. We also have a
                                 list of all the Elm modules exposed by the
                                 packages we know about.
