@@ -9,7 +9,7 @@ module Handler.Repo where
 
 import Data.SemVer (toText)
 import Database.Esqueleto
-import Import.App
+import Import.App hiding (groupBy, on)
 
 getRepoR :: RepoId -> Handler Html
 getRepoR repoId = do
@@ -63,13 +63,23 @@ getReposR = do
     repos <-
         runDB $
         select $
-        from $ \repo -> do
+        from $ \(repo `LeftOuterJoin` version `LeftOuterJoin` package) -> do
+            on $ version ?. RepoVersionDecoded ==. just (package ?. PackageId)
+            on $
+                (version ?. RepoVersionRepo ==. just (repo ^. RepoId)) &&.
+                (version ?. RepoVersionVersion ==.
+                 sub_select
+                     (from $ \version2 -> do
+                          where_ $
+                              version2 ^. RepoVersionRepo ==. repo ^. RepoId
+                          pure $ max_ $ version2 ^. RepoVersionVersion))
             orderBy [asc $ repo ^. RepoGitUrl]
-            pure repo
+            pure (repo, version, package)
     isLoggedIn <- isJust <$> maybeAuth
-    defaultLayout
+    wrapper <- newIdent
+    defaultLayout $ do
         [whamlet|
-            <div .container>
+            <div .container .#{wrapper}>
                 <div .row>
                     <div .col-md-6>
                         <p>
@@ -93,13 +103,24 @@ getReposR = do
                                 <button type="submit" .btn .btn-default>Submit Git URL to monitor
                         $else
                             <a href="@{AuthR LoginR}">Login</a> to submit a Git URL for us to monitor.
-                        <p>
                 <div .row>
                     <div .col-lg-12>
-                        $forall Entity repoId repo <- repos
-                            <div>
-                                <a href=@{RepoR repoId}>#{repoGitUrl repo}
+                        <dl>
+                            $forall (repo, version, package) <- repos
+                                <dt>
+                                    <a href=@{RepoR (entityKey repo)}>#{(repoGitUrl . entityVal) repo}
+                                <dd>
+                                    $forall p <- package
+                                        #{(packageSummary . entityVal) p}
         |]
+        toWidget
+            [cassius|
+                .#{wrapper}
+                    dt
+                        margin-top: 1em
+                    dd
+                        margin-left: 3em
+            |]
 
 postReposR :: Handler Html
 postReposR = do
