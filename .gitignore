@@ -1,5 +1,6 @@
 dist*
 static/tmp/
+static/bower_components/
 static/combined/
 config/client_session_key.aes
 .env

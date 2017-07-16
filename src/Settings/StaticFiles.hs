@@ -4,7 +4,7 @@
 module Settings.StaticFiles where
 
 import Settings.App (appStaticDir, compileTimeAppSettings)
-import Yesod.Static (staticFiles)
+import Yesod.Static (staticFilesList)
 
 -- This generates easy references to files in the static directory at compile time,
 -- giving you compile-time verification that referenced files exist.
@@ -18,4 +18,14 @@ import Yesod.Static (staticFiles)
 -- If the identifier is not available, you may use:
 --
 --     StaticFile ["js", "script.js"] []
-staticFiles (appStaticDir compileTimeAppSettings)
+staticFilesList (appStaticDir compileTimeAppSettings)
+    [ "bower_components/jquery/dist/jquery.min.js"
+    , "bower_components/bootstrap/dist/css/bootstrap.min.css"
+    , "bower_components/bootstrap/dist/css/bootstrap-theme.min.css"
+    , "bower_components/bootstrap/dist/js/bootstrap.min.js"
+    , "bower_components/bootstrap/dist/fonts/glyphicons-halflings-regular.eot"
+    , "bower_components/bootstrap/dist/fonts/glyphicons-halflings-regular.svg" 
+    , "bower_components/bootstrap/dist/fonts/glyphicons-halflings-regular.ttf"
+    , "bower_components/bootstrap/dist/fonts/glyphicons-halflings-regular.woff"
+    , "bower_components/bootstrap/dist/fonts/glyphicons-halflings-regular.woff2"
+    ]
