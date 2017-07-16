@@ -8,14 +8,18 @@
 module Handler.Repo where
 
 import Data.SemVer (toText)
-import Database.Persist.Sql
+import Database.Esqueleto
 import Import.App
 
 getRepoR :: RepoId -> Handler Html
 getRepoR repoId = do
     versions <-
         runDB $
-        selectList [RepoVersionRepo ==. repoId] [Desc RepoVersionVersion]
+        select $
+        from $ \version -> do
+            where_ $ version ^. RepoVersionRepo ==. val repoId
+            orderBy [desc $ version ^. RepoVersionVersion]
+            pure version
     defaultLayout
         [whamlet|
             <div .container>
@@ -56,7 +60,12 @@ submissionForm =
 getReposR :: Handler Html
 getReposR = do
     (widget, enctype) <- generateFormPost submissionForm
-    repos <- runDB $ selectList [] [Asc RepoGitUrl]
+    repos <-
+        runDB $
+        select $
+        from $ \repo -> do
+            orderBy [asc $ repo ^. RepoGitUrl]
+            pure repo
     isLoggedIn <- isJust <$> maybeAuth
     defaultLayout
         [whamlet|
