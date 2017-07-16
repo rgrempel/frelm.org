@@ -39,13 +39,25 @@ getRepoR repoId = do
 
 getRepoVersionR :: RepoVersionId -> Handler Html
 getRepoVersionR repoVersionId = do
-    repoVersion <- runDB $ get404 repoVersionId
+    v <- runDB $ get404 repoVersionId
     defaultLayout
         [whamlet|
             <div .container>
                 <div .row>
                     <div .col-lg-12>
-                        <h3>Tag: #{repoVersionTag repoVersion}
+                        <table .table .table-striped .table-responsive>
+                            <tr>
+                                <td>Tag
+                                <td>#{repoVersionTag v}
+                            <tr>
+                                <td>Version
+                                <td>#{(toText . repoVersionVersion) v}
+                            <tr>
+                                <td>SHA
+                                <td>#{repoVersionSha v}
+                            <tr>
+                                <td>Commmitted At
+                                <td>#{(tshow . repoVersionCommittedAt) v}
         |]
 
 data SubmissionForm = SubmissionForm
