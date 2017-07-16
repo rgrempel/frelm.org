@@ -42,6 +42,14 @@
     margin: 1em 0;
 }
 
+.breadcrumb {
+    font-size: 1.2em;
+
+    li.active {
+        color: black;
+        font-weight: bold;
+    }
+}
 
 /* Common styles for all types */
 .bs-callout {
