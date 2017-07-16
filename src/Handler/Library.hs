@@ -18,8 +18,6 @@ getLibrariesR = do
         [whamlet|
             <div .container>
                 <div .row>
-                    <h3>Libraries
-                <div .row>
                     <p>
                         This is a list of all the Elm libraries we know about.
                 <div .row>

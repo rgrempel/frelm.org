@@ -18,8 +18,6 @@ getModulesR = do
         [whamlet|
             <div .container>
                 <div .row>
-                    <h3>Modules
-                <div .row>
                     <p>
                         This is a list of all the Elm modules we know about.
                 <div .row>

@@ -29,8 +29,6 @@ getRecentR = do
         [whamlet|
             <div .container>
                 <div .row>
-                    <h3>Recently published
-                <div .row>
                     <p>
                         This is a list of recently published versions.
                 <div .row>

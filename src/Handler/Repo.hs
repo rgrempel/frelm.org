@@ -13,20 +13,14 @@ import Import.App
 
 getRepoR :: RepoId -> Handler Html
 getRepoR repoId = do
-    (repo, versions) <-
-        runDB $ do
-            r <- get404 repoId
-            v <-
-                selectList
-                    [RepoVersionRepo ==. repoId]
-                    [Desc RepoVersionVersion]
-            pure (r, v)
+    versions <-
+        runDB $
+        selectList [RepoVersionRepo ==. repoId] [Desc RepoVersionVersion]
     defaultLayout
         [whamlet|
             <div .container>
                 <div .row>
                     <div .col-lg-12>
-                        <h2>#{repoGitUrl repo}
                         <p>
                             Here's a list of the tags we know about in this repo.
                             We look for tags that are formatted as a Semantic Version ...
@@ -41,19 +35,12 @@ getRepoR repoId = do
 
 getRepoVersionR :: RepoVersionId -> Handler Html
 getRepoVersionR repoVersionId = do
-    (repoVersion, repo)
-        -- TODO: Should do this in one query
-         <-
-        runDB $ do
-            v <- get404 repoVersionId
-            r <- get404 (repoVersionRepo v)
-            pure (v, r)
+    repoVersion <- runDB $ get404 repoVersionId
     defaultLayout
         [whamlet|
             <div .container>
                 <div .row>
                     <div .col-lg-12>
-                        <h2>#{repoGitUrl repo}
                         <h3>Tag: #{repoVersionTag repoVersion}
         |]
 
