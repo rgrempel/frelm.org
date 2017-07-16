@@ -8,12 +8,17 @@
 module Handler.Module where
 
 import Data.SemVer (toText)
-import Database.Persist.Sql
+import Database.Esqueleto
 import Import.App
 
 getModulesR :: Handler Html
 getModulesR = do
-    modules <- runDB $ selectList [] [Asc ModuleName]
+    modules <-
+        runDB $
+        select $
+        from $ \m -> do
+            orderBy [asc $ m ^. ModuleName]
+            pure m
     defaultLayout
         [whamlet|
             <div .container>
