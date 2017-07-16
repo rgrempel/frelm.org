@@ -34,9 +34,11 @@ getRecentR = do
                 <div .row>
                     <div .col-lg-12>
                         <dl>
-                            $forall (Entity _ rv, Entity _ p, Entity _ l) <- result 
+                            $forall (Entity rvId rv, Entity _ p, Entity _ l) <- result
                                 <dt>
-                                    #{libraryName l} - #{(toText . repoVersionVersion) rv} - #{(tshow . repoVersionCommittedAt) rv}
+                                    #{libraryName l} -
+                                    <a href="@{RepoVersionR rvId}">#{(toText . repoVersionVersion) rv}
+                                    - #{(tshow . repoVersionCommittedAt) rv}
                                 <dd>
                                     #{packageSummary p}
         |]
