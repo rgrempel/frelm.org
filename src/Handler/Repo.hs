@@ -37,28 +37,83 @@ getRepoR repoId = do
                                     <td>#{tshow $ repoVersionCommittedAt version}
         |]
 
+handle404 :: MonadHandler m => m [a] -> m a
+handle404 =
+    (=<<) $ \b ->
+        case b of
+            initial:_ -> pure initial
+            [] -> notFound
+
 getRepoVersionR :: RepoVersionId -> Handler Html
 getRepoVersionR repoVersionId = do
-    v <- runDB $ get404 repoVersionId
+    (v, p) <-
+        handle404 $
+        runDB $
+        select $
+        from $ \(v `LeftOuterJoin` p) -> do
+            on $ v ^. RepoVersionDecoded ==. p ?. PackageId
+            where_ $ v ^. RepoVersionId ==. val repoVersionId
+            pure (v, p)
     defaultLayout
         [whamlet|
             <div .container>
                 <div .row>
                     <div .col-lg-12>
-                        <table .table .table-striped .table-responsive>
-                            <tr>
-                                <td>Tag
-                                <td>#{repoVersionTag v}
-                            <tr>
-                                <td>Version
-                                <td>#{(toText . repoVersionVersion) v}
-                            <tr>
-                                <td>SHA
-                                <td>#{repoVersionSha v}
-                            <tr>
-                                <td>Commmitted At
-                                <td>#{(tshow . repoVersionCommittedAt) v}
+                        ^{viewRepoVersion v p}
         |]
+
+viewRepoVersion :: Entity RepoVersion -> Maybe (Entity Package) -> Widget
+viewRepoVersion (Entity _ v) decoded =
+    [whamlet|
+        <table .table .table-striped .table-responsive>
+            <tr>
+                <td>Tag
+                <td>#{repoVersionTag v}
+            <tr>
+                <td>SHA
+                <td>#{repoVersionSha v}
+            <tr>
+                <td>Commmitted At
+                <td>#{(tshow . repoVersionCommittedAt) v}
+
+        $case repoVersionPackage v
+            $of Nothing
+                <div .alert.alert-danger>
+                    We were not able to find the expected
+                    <code>elm-package.json
+                    at this tag.
+            $of Just package
+                $case decoded
+                    $of Just d
+                        ^{viewDecodedPackage d}
+                    $of Nothing
+                        <div .alert.alert-danger>
+                            <p>
+                                We encountered the following errors
+                                when trying to decode the
+                                <code>elm-package.json
+                                file.
+                            $forall err <- repoVersionDecodeError v
+                                <p>
+                                    <pre>
+                                        #{err}
+                            $forall p <- repoVersionPackage v
+                                <p>
+                                    <pre>
+                                        #{p}
+    |]
+
+viewDecodedPackage :: Entity Package -> Widget
+viewDecodedPackage (Entity _ p) =
+    [whamlet|
+        <table .table .table-striped .table-responsive>
+            <tr>
+                <td>Version
+                <td>#{(toText . packageVersion) p}
+            <tr>
+                <td>Summary
+                <td>#{packageSummary p}
+    |]
 
 data SubmissionForm = SubmissionForm
     { gitUrl :: Text
