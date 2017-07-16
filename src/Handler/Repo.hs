@@ -70,12 +70,10 @@ getReposR :: Handler Html
 getReposR = do
     (widget, enctype) <- generateFormPost submissionForm
     repos <- runDB $ selectList [] [Asc RepoGitUrl]
+    isLoggedIn <- isJust <$> maybeAuth
     defaultLayout
         [whamlet|
             <div .container>
-                <div .row>
-                    <div .col-sm-12>
-                        <h3>Repositories
                 <div .row>
                     <div .col-md-6>
                         <p>
@@ -86,16 +84,19 @@ getReposR = do
                             manager, then your repository should appear here automatically
                             (eventually -- we check about once per day).
                         <p>
-                            If you'd like to add a repository here manually, you can
-                            do so using the form below, by submitting a Git URL that
-                            looks something like the examples. That is the URL
-                            we will use to fetch your package via operations such
-                            as `git ls-remote` and `git clone`.
-
+                            If you'd like to add a repository here manually,
+                            you can do so using the form on the right, by
+                            submitting a Git URL that looks something like the
+                            examples. That is the URL we will use to fetch your
+                            package via operations such as `git ls-remote` and
+                            `git clone`.
                     <div .col-md-6>
-                        <form method=post action=@{ReposR} enctype=#{enctype}>
-                            ^{widget}
-                            <button type="submit" .btn .btn-default>Submit Git URL
+                        $if isLoggedIn
+                            <form method=post action=@{ReposR} enctype=#{enctype}>
+                                ^{widget}
+                                <button type="submit" .btn .btn-default>Submit Git URL to monitor
+                        $else
+                            <a href="@{AuthR LoginR}">Login</a> to submit a Git URL for us to monitor.
                         <p>
                 <div .row>
                     <div .col-lg-12>
