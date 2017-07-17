@@ -56,6 +56,7 @@ migrations =
     , addCommittedAtToRepoVersion
     , addDefaultForSha
     , addDefaultForCommittedAt
+    , addNativeModulesToPackage
     ]
 
 migrateInitial :: MigrationCommand
@@ -502,4 +503,16 @@ addDefaultForCommittedAt =
                 SET committed_at = NOW();
             ALTER TABLE repo_version
                 ALTER COLUMN committed_at SET NOT NULL;
+        |]
+
+addNativeModulesToPackage :: MigrationCommand
+addNativeModulesToPackage =
+    MigrationScript "add-native-modules-to-package" $
+    encodeUtf8
+        [text|
+            ALTER TABLE package
+                ADD COLUMN native_modules
+                    BOOL
+                    DEFAULT FALSE
+                    NOT NULL;
         |]

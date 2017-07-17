@@ -76,6 +76,7 @@ share
             repository Text
             library LibraryId Maybe
             license Text
+            nativeModules Bool
             elmVersion (Range Version) Maybe
 
         Dependency

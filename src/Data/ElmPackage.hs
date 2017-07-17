@@ -21,6 +21,7 @@ data ElmPackage = ElmPackage
     , elmPackageRepository :: Text
     , elmPackageLicense :: Text
     , elmPackageModules :: [Text]
+    , elmPackageNativeModules :: Bool
     , elmPackageDependencies :: Map Text (Range Version)
     -- Not all pacakges specify this ... perhaps it wasn't
     -- required at one point?
@@ -37,6 +38,7 @@ instance FromJSON ElmPackage where
             elmPackageModules <- v .: "exposed-modules"
             elmPackageDependencies <- v .: "dependencies"
             elmPackageElmVersion <- v .:? "elm-version"
+            elmPackageNativeModules <- v .:? "native-modules" .!= False
             pure ElmPackage {..}
 
 elmPackageLibraryName :: ElmPackage -> Maybe Text

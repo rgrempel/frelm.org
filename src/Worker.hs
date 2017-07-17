@@ -54,6 +54,7 @@ data Command
     | RecheckRepo Int64
     | RecheckTags
     | ReparsePackages
+    | ReparseAllPackages
     | RunMigrations
     | Scrape
     deriving (Show)
@@ -81,6 +82,9 @@ parseArgs = info sub fullDesc
              fullDesc <> progDesc "Recheck a repo with the specified ID.") <>
         command "reparse" (info reparseOptions $ fullDesc <> progDesc "Reparse") <>
         command
+            "reparse-all"
+            (info reparseAllOptions $ fullDesc <> progDesc "Reparse All") <>
+        command
             "scrape"
             (info scrapeOptions $ fullDesc <> progDesc "Scrape packages")
     addRepoOptions = fmap AddRepo $ argument str $ metavar "REPOSITORY"
@@ -89,6 +93,7 @@ parseArgs = info sub fullDesc
     crawlOptions = pure Crawl
     recheckTagsOptions = pure RecheckTags
     reparseOptions = pure ReparsePackages
+    reparseAllOptions = pure ReparseAllPackages
     scrapeOptions = pure Scrape
 
 runWorkerDB :: WorkerDB a -> WorkerT a
@@ -111,6 +116,7 @@ runWorker = do
                 MigrationError err -> liftIO $ die err
         Crawl -> crawl
         ReparsePackages -> reparsePackages
+        ReparseAllPackages -> reparseAllPackages
         Scrape -> scrape
 
 -- | The main function for the worker.
@@ -148,8 +154,15 @@ reparsePackages :: WorkerT ()
 reparsePackages =
     void $ runWorkerDB $ decodedPackageIsNull >>= traverse decodePackageJSON
 
+reparseAllPackages :: WorkerT ()
+reparseAllPackages =
+    void $ runWorkerDB $ allRepoVersions >>= traverse decodePackageJSON
+
 checkTags :: WorkerT ()
 checkTags = void $ runWorkerDB $ neverCheckedForTags >>= traverse checkRepoTags
+
+allRepoVersions :: WorkerDB [Entity RepoVersion]
+allRepoVersions = select $ from pure
 
 decodedPackageIsNull :: WorkerDB [Entity RepoVersion]
 decodedPackageIsNull =
@@ -322,6 +335,7 @@ decodePackageJSON repoVersion =
                         , packageRepository = elmPackageRepository p
                         , packageLibrary = libraryId
                         , packageLicense = elmPackageLicense p
+                        , packageNativeModules = elmPackageNativeModules p
                         , packageElmVersion = elmPackageElmVersion p
                         }
                 packageId <-
