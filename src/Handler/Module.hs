@@ -50,10 +50,10 @@ getModulesR = do
                                 $forall (Entity _ moduleRec, _, _, _, _ ,_) <- safeHead byModule
                                     <dt>#{moduleName moduleRec}
                                     <dd>
-                                        $forall (_, _, Entity _ library, _, Entity rvId rv, _) <- byModule
+                                        $forall (_, _, Entity _ library, _, Entity rvId rv, Entity repoId _) <- byModule
                                             <div>
                                                 #{libraryName library} /
-                                                <a href="@{RepoVersionR rvId}">#{(toText . repoVersionVersion) rv}
+                                                <a href="@{RepoVersionR (repoVersionRepo rv) (repoVersionTag rv)}">#{(toText . repoVersionVersion) rv}
         |]
         toWidget
             [cassius|

@@ -57,6 +57,8 @@ migrations =
     , addDefaultForSha
     , addDefaultForCommittedAt
     , addNativeModulesToPackage
+    , uniqueRepoVersionOnTag
+    , indexRepoAndVersion
     ]
 
 migrateInitial :: MigrationCommand
@@ -515,4 +517,36 @@ addNativeModulesToPackage =
                     BOOL
                     DEFAULT FALSE
                     NOT NULL;
+        |]
+
+uniqueRepoVersionOnTag :: MigrationCommand
+uniqueRepoVersionOnTag =
+    MigrationScript "unique-repo-version-on-tag" $
+    encodeUtf8
+        [text|
+            ALTER TABLE repo_version
+                DROP CONSTRAINT repo_version_unique,
+                ADD CONSTRAINT repo_version_unique
+                    UNIQUE (repo, tag);
+
+            CREATE INDEX repo_version_version_idx
+                ON repo_version (version);
+
+            CREATE INDEX repo_version_tag_idx
+                ON repo_version (tag);
+
+            CREATE INDEX repo_version_sha_idx
+                ON repo_version (sha);
+        |]
+
+
+-- | This turns out to speed up getting the "highest version
+-- for a specific repo" considerably, by about 4x.
+indexRepoAndVersion :: MigrationCommand
+indexRepoAndVersion =
+    MigrationScript "unique-repo-and-version" $
+    encodeUtf8
+        [text|
+            CREATE INDEX repo_version_repo_version_idx
+                ON repo_version (repo, version);
         |]

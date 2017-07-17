@@ -49,7 +49,7 @@ getRecentR = do
                                         $forall (Entity rvId rv2, Entity _ p, Entity _ l) <- byDay 
                                             <dt>
                                                 #{libraryName l} -
-                                                <a href="@{RepoVersionR rvId}">#{(toText . repoVersionVersion) rv2}
+                                                <a href="@{RepoVersionR (repoVersionRepo rv) (repoVersionTag rv)}">#{(toText . repoVersionVersion) rv2}
                                             <dd>
                                                 #{packageSummary p}
         |]

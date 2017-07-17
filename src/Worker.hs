@@ -304,6 +304,7 @@ checkNewTag repoId gitDir gitTag = do
                             , repoVersionDecoded = Nothing
                             }
                             [ RepoVersionTag P.=. gitTagTag gitTag
+                            , RepoVersionVersion P.=. gitTagVersion gitTag
                             , RepoVersionSha P.=. gitTagSha gitTag
                             , RepoVersionPackage P.=. contents
                             , RepoVersionCommittedAt P.=. committed

@@ -67,7 +67,7 @@ share
             decodeError Text Maybe
             decoded PackageId Maybe
 
-            UniqueRepoVersion repo version
+            UniqueRepoVersion repo tag
             deriving Eq Show
 
         Package

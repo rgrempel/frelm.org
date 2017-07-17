@@ -72,7 +72,7 @@ getLibrariesR = do
                                         $forall (Entity _ library, Entity repoId repo, Entity repoVersionId rv, Entity packageId package) <- byLibrary
                                             <div>
                                                 #{packageSummary package} /
-                                                <a href="@{RepoVersionR repoVersionId}">#{(toText . repoVersionVersion) rv}
+                                                <a href="@{RepoVersionR (repoVersionRepo rv) (repoVersionTag rv)}">#{(toText . repoVersionVersion) rv}
         |]
         toWidget
             [cassius|

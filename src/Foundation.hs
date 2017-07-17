@@ -81,7 +81,7 @@ mkYesodData
         /repo ReposR GET POST
         /repo/#RepoId RepoR GET
 
-        /version/#RepoVersionId RepoVersionR GET
+        /repo/#RepoId/#Text RepoVersionR GET
 
         /profile ProfileR GET
     |]
@@ -216,7 +216,7 @@ instance Yesod App where
     isAuthorized LibrariesR _ = pure Authorized
     isAuthorized RecentR _ = pure Authorized
     isAuthorized ModulesR _ = pure Authorized
-    isAuthorized (RepoVersionR _) _ = return Authorized
+    isAuthorized (RepoVersionR _ _) _ = return Authorized
     isAuthorized (RepoR _) write = authorizeWrite write
     isAuthorized ReposR write = authorizeWrite write
     -- This function creates static content files in the static folder
@@ -264,17 +264,12 @@ instance YesodBreadcrumbs App where
     breadcrumb LibrariesR = pure ("Libraries", Nothing)
     breadcrumb RecentR = pure ("Recent", Nothing)
     breadcrumb ModulesR = pure ("Modules", Nothing)
+    breadcrumb (RepoVersionR repoId tag) = pure (tag, Just (RepoR repoId))
     breadcrumb ReposR = pure ("Repositories", Nothing)
     breadcrumb (RepoR repoId) =
         runDB $ do
             repoUrl <- maybe "Unknown repository" repoGitUrl <$> get repoId
             pure (repoUrl, Just ReposR)
-    breadcrumb (RepoVersionR versionId) =
-        runDB $ do
-            repoVersion <- get versionId
-            pure
-                ( maybe "Unknown Version" repoVersionTag repoVersion
-                , (RepoR . repoVersionRepo) <$> repoVersion)
 
 -- How to run database actions.
 instance YesodPersist App where

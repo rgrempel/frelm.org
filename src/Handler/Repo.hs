@@ -33,7 +33,7 @@ getRepoR repoId = do
                             $forall Entity versionId version <- versions
                                 <tr>
                                     <td>
-                                        <a href=@{RepoVersionR versionId}>#{repoVersionTag version}
+                                        <a href=@{RepoVersionR (repoVersionRepo version) (repoVersionTag version)}>#{repoVersionTag version}
                                     <td>#{tshow $ repoVersionCommittedAt version}
         |]
 
@@ -44,15 +44,17 @@ handle404 =
             initial:_ -> pure initial
             [] -> notFound
 
-getRepoVersionR :: RepoVersionId -> Handler Html
-getRepoVersionR repoVersionId = do
+getRepoVersionR :: RepoId -> Text -> Handler Html
+getRepoVersionR repoId tag = do
     (v, p) <-
         handle404 $
         runDB $
         select $
         from $ \(v `LeftOuterJoin` p) -> do
             on $ v ^. RepoVersionDecoded ==. p ?. PackageId
-            where_ $ v ^. RepoVersionId ==. val repoVersionId
+            where_ $
+                (v ^. RepoVersionRepo ==. val repoId) &&.
+                (v ^. RepoVersionTag ==. val tag)
             pure (v, p)
     defaultLayout
         [whamlet|
