@@ -163,13 +163,29 @@ getReposR = do
                             examples. That is the URL we will use to fetch your
                             package via operations such as `git ls-remote` and
                             `git clone`.
+                        <p>
+                            <small>
+                                One thing you might reasonably wonder is how the
+                                list of "repositories" differs from the list of
+                                "libraries." Tecnically, the difference is that the
+                                reponsitories track the actual Git URLs we use in
+                                order to fetch things. The libraries track the
+                                repository <b>declared</b> in the
+                                <code>elm-package.json</code> file. Normally, these
+                                have a well-defined relationship, but we don't
+                                entirely count on it. This is in part because I'd
+                                eventually like to do something useful with the
+                                <code>dependency-sources</code> used by
+                                <code>elm-install</code>.
                     <div .col-md-6>
                         $if isLoggedIn
-                            <form method=post action=@{ReposR} enctype=#{enctype}>
-                                ^{widget}
-                                <button type="submit" .btn .btn-default>Submit Git URL to monitor
+                            <p>
+                                <form method=post action=@{ReposR} enctype=#{enctype}>
+                                    ^{widget}
+                                    <button type="submit" .btn .btn-default>Submit Git URL to monitor
                         $else
-                            <a href="@{AuthR LoginR}">Login</a> to submit a Git URL for us to monitor.
+                            <p>
+                                <a href="@{AuthR LoginR}">Login</a> to submit a Git URL for us to monitor.
                 <div .row>
                     <div .col-lg-12>
                         <dl>
