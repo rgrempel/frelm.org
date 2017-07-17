@@ -11,15 +11,17 @@ import Data.SemVer (toText)
 import Data.Time.Calendar (showGregorian)
 import Database.Esqueleto
 import Import.App hiding (on)
+import qualified Import.App as Prelude
 
 getRecentR :: Handler Html
 getRecentR = do
     result <-
         fmap
-            (Import.App.groupBy
-                 (\(Entity _ rv, _, _) (Entity _ rv2, _, _) ->
-                      (utctDay . repoVersionCommittedAt) rv ==
-                      (utctDay . repoVersionCommittedAt) rv2)) $
+            (Prelude.groupBy
+                 (Prelude.on
+                      (==)
+                      (\(Entity _ rv, _, _) ->
+                           (utctDay . repoVersionCommittedAt) rv))) $
         runDB $
         select $
         distinct $
