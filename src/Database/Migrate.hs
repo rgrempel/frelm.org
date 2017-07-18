@@ -62,6 +62,7 @@ migrations =
     , rejigPackages
     , dropIdFieldFromPackage
     , dropRepoFromDependency
+    , rejigPackagesAgain
     ]
 
 migrateInitial :: MigrationCommand
@@ -665,4 +666,26 @@ dropRepoFromDependency =
         [text|
             ALTER TABLE dependency
                 DROP COLUMN repo;
+        |]
+
+rejigPackagesAgain :: MigrationCommand
+rejigPackagesAgain =
+    MigrationScript "rejig-packages-again" $
+    encodeUtf8
+        [text|
+            ALTER TABLE package_check
+                DROP CONSTRAINT package_check_pkey,
+                ADD CONSTRAINT package_check_unique
+                    UNIQUE (repo_version),
+                ADD COLUMN id
+                    BIGSERIAL
+                    PRIMARY KEY;
+
+            ALTER TABLE package
+                DROP CONSTRAINT package_pkey,
+                ADD CONSTRAINT package_unique
+                    UNIQUE (repo_version),
+                ADD COLUMN id
+                    BIGSERIAL
+                    PRIMARY KEY;
         |]

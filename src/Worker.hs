@@ -304,34 +304,34 @@ checkNewTag repoId gitDir gitTag = do
                             , RepoVersionSha P.=. gitTagSha gitTag
                             , RepoVersionCommittedAt P.=. committed
                             ]
-                    let packageCheckKey =
-                            PackageCheckKey $ entityKey repoVersion
-                    let elmPackageJson = gitDir </> "elm-package.json"
-                    hasElmPackage <- liftIO $ doesFileExist elmPackageJson
-                    if hasElmPackage
-                        then do
-                            contents <- liftIO $ readFile elmPackageJson
-                            let packageCheck =
-                                    Entity
-                                        packageCheckKey
+                    pc <-
+                        do let elmPackageJson = gitDir </> "elm-package.json"
+                           hasElmPackage <-
+                               liftIO $ doesFileExist elmPackageJson
+                           if hasElmPackage
+                               then do
+                                   contents <- liftIO $ readFile elmPackageJson
+                                   upsert
+                                       PackageCheck
+                                       { packageCheckPackage = Just contents
+                                       , packageCheckDecodeError = Nothing
+                                       , packageCheckRepoVersion =
+                                             entityKey repoVersion
+                                       }
+                                       [ PackageCheckPackage P.=. Just contents
+                                       , PackageCheckDecodeError P.=. Nothing
+                                       ]
+                               else upsert
                                         PackageCheck
-                                        { packageCheckPackage = Just contents
+                                        { packageCheckPackage = Nothing
                                         , packageCheckDecodeError = Nothing
                                         , packageCheckRepoVersion =
                                               entityKey repoVersion
                                         }
-                            repsert
-                                (entityKey packageCheck)
-                                (entityVal packageCheck)
-                            decodePackageJSON packageCheck
-                        else repsert
-                                 packageCheckKey
-                                 PackageCheck
-                                 { packageCheckPackage = Nothing
-                                 , packageCheckDecodeError = Nothing
-                                 , packageCheckRepoVersion =
-                                       entityKey repoVersion
-                                 }
+                                        [ PackageCheckPackage P.=. Nothing
+                                        , PackageCheckDecodeError P.=. Nothing
+                                        ]
+                    decodePackageJSON pc
 
 decodePackageJSON :: Entity PackageCheck -> WorkerDB ()
 decodePackageJSON pc =
@@ -351,8 +351,7 @@ decodePackageJSON pc =
                     forM (elmPackageLibraryName p) $ \libraryName ->
                         either entityKey id <$> insertBy Library {..}
                 package <-
-                    repsert
-                        (PackageKey $ packageCheckRepoVersion $ entityVal pc)
+                    upsert
                         Package
                         { packageRepoVersion =
                               packageCheckRepoVersion $ entityVal pc
@@ -364,6 +363,14 @@ decodePackageJSON pc =
                         , packageNativeModules = elmPackageNativeModules p
                         , packageElmVersion = elmPackageElmVersion p
                         }
+                        [ PackageVersion P.=. elmPackageVersion p
+                        , PackageSummary P.=. elmPackageSummary p
+                        , PackageRepository P.=. elmPackageRepository p
+                        , PackageLibrary P.=. libraryId
+                        , PackageLicense P.=. elmPackageLicense p
+                        , PackageNativeModules P.=. elmPackageNativeModules p
+                        , PackageElmVersion P.=. elmPackageElmVersion p
+                        ]
                 forM_ (nub $ elmPackageModules p) $ \moduleName -> do
                     moduleId <- either entityKey id <$> insertBy Module {..}
                     void $

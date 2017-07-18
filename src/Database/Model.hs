@@ -24,8 +24,8 @@ import GHC.IO.Exception (ExitCode)
 -- You can find more information on persistent and how to declare entities
 -- at:
 -- http://www.yesodweb.com/book/persistent/
-share
-    [mkPersist sqlSettings]
+mkPersist
+    sqlSettings
     [persistLowerCase|
         User sql=users
             name Text
@@ -86,10 +86,11 @@ share
         -- often skip joining this table.
         PackageCheck
             repoVersion RepoVersionId
-            Primary repoVersion
 
             package Text Maybe
             decodeError Text Maybe
+
+            UniquePackageCheck repoVersion
 
         -- Another one-to-one with RepoVersion ... this is the decoded contents
         -- of the elm-package.json, if we succeeded in decoding them. In a
@@ -97,7 +98,6 @@ share
         -- need to be nullable.
         Package
             repoVersion RepoVersionId
-            Primary repoVersion
 
             version Version
             summary Text
@@ -106,6 +106,8 @@ share
             license Text
             nativeModules Bool
             elmVersion (Range Version) Maybe
+
+            UniquePackage repoVersion
 
         Dependency
             repoVersion RepoVersionId
