@@ -8,6 +8,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# OPTIONS_GHC -ddump-splices -ddump-to-file #-}
 
 module Database.Model where
 
@@ -62,15 +63,42 @@ share
             tag Text
             sha Text
             committedAt UTCTime
+            -- version is calculated from the tag ... it's nice for comparisons
+            -- etc. Note that it's not necessarily the same as the version
+            -- declared in the decoded package ... that is, this is an
+            -- interpretation of the tag, rather than the decoded version. Of
+            -- course, normally those ought to be the same.
             version Version
-            package Text Maybe
-            decodeError Text Maybe
-            decoded PackageId Maybe
 
             UniqueRepoVersion repo tag
             deriving Eq Show
 
+        -- This is a one-to-one with RepoVersion .. basically, we track the
+        -- result of the latest attempt to decode the package. If we got the
+        -- package at all, the package field will be non-null. If we had an
+        -- error decoding it, the decodeError will be non-null. We keep this
+        -- around even if we succeed, so that we can re-decode the package if
+        -- necessary without re-cloning. (That's nice for development ... might
+        -- not be necessary once stable).
+        --
+        -- This is distinct from `Package` so that we only have to join the
+        -- textual contents of the package when that's relevant ... we can
+        -- often skip joining this table.
+        PackageCheck
+            repoVersion RepoVersionId
+            Primary repoVersion
+
+            package Text Maybe
+            decodeError Text Maybe
+
+        -- Another one-to-one with RepoVersion ... this is the decoded contents
+        -- of the elm-package.json, if we succeeded in decoding them. In a
+        -- seperate table from `RepoVersion` since otherwise all of these would
+        -- need to be nullable.
         Package
+            repoVersion RepoVersionId
+            Primary repoVersion
+
             version Version
             summary Text
             repository Text
@@ -80,11 +108,10 @@ share
             elmVersion (Range Version) Maybe
 
         Dependency
-            package PackageId
+            repoVersion RepoVersionId
             library LibraryId
-            repo RepoId
             version (Range Version)
-            UniqueDepdenency package library
+            UniqueDepdenency repoVersion library
 
         Library
             name Text
@@ -100,8 +127,8 @@ share
             UniqueModule name
 
         PackageModule
-            packageId PackageId
+            repoVersion RepoVersionId
             moduleId ModuleId
             exposed Bool
-            UniquePackageModule packageId moduleId
+            UniquePackageModule repoVersion moduleId
     |]

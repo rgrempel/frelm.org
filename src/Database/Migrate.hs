@@ -59,6 +59,9 @@ migrations =
     , addNativeModulesToPackage
     , uniqueRepoVersionOnTag
     , indexRepoAndVersion
+    , rejigPackages
+    , dropIdFieldFromPackage
+    , dropRepoFromDependency
     ]
 
 migrateInitial :: MigrationCommand
@@ -539,7 +542,6 @@ uniqueRepoVersionOnTag =
                 ON repo_version (sha);
         |]
 
-
 -- | This turns out to speed up getting the "highest version
 -- for a specific repo" considerably, by about 4x.
 indexRepoAndVersion :: MigrationCommand
@@ -549,4 +551,118 @@ indexRepoAndVersion =
         [text|
             CREATE INDEX repo_version_repo_version_idx
                 ON repo_version (repo, version);
+        |]
+
+-- | This is a substantial re-working of how repoVersions relate
+-- to package. Basically, we re-use the repoVersionId as the primary
+-- key for the other tables
+rejigPackages :: MigrationCommand
+rejigPackages =
+    MigrationScript "rejig-packages" $
+    encodeUtf8
+        [text|
+            CREATE TABLE package_check
+                ( repo_version
+                    BIGINT
+                    PRIMARY KEY
+                    CONSTRAINT package_check_repo_version_fk
+                        REFERENCES repo_version
+
+                , package
+                    VARCHAR
+
+                , decode_error
+                    VARCHAR
+                );
+
+            INSERT INTO package_check
+                (SELECT id as repo_version, package, decode_error FROM repo_version);
+
+            ALTER TABLE repo_version
+                DROP COLUMN package,
+                DROP COLUMN decode_error;
+
+            ALTER TABLE package_module
+                ADD COLUMN repo_version
+                    BIGINT
+                    CONSTRAINT package_module_rv_fk
+                        REFERENCES repo_version,
+                ADD CONSTRAINT package_module_unique2
+                    UNIQUE (repo_version, module_id);
+
+            UPDATE package_module as pm
+                SET repo_version = rv.id
+                FROM package as p
+                INNER JOIN repo_version as rv ON p.id = rv.decoded
+                WHERE pm.package_id = p.id;
+
+            ALTER TABLE package_module
+                ALTER column repo_version
+                    SET NOT NULL;
+
+            CREATE INDEX package_module_rv_idx
+                ON package_module (repo_version);
+
+            ALTER TABLE package_module
+                DROP COLUMN package_id;
+
+            ALTER TABLE dependency
+                ADD COLUMN repo_version
+                    BIGINT
+                    CONSTRAINT dependency_rv_fk
+                        REFERENCES repo_version,
+                ADD CONSTRAINT dependency_module_unique2
+                    UNIQUE (repo_version, library);
+
+            UPDATE dependency as d
+                SET repo_version = rv.id
+                FROM package as p
+                INNER JOIN repo_version as rv ON p.id = rv.decoded
+                WHERE d.package = p.id;
+
+            ALTER TABLE dependency
+                ALTER COLUMN repo_version
+                    SET NOT NULL;
+
+            CREATE INDEX dependency_rv_idx
+                ON dependency (repo_version);
+
+            ALTER TABLE dependency
+                DROP COLUMN package;
+
+            ALTER TABLE package
+                ADD COLUMN repo_version
+                    BIGINT
+                    CONSTRAINT package_rv_fk
+                        REFERENCES repo_version;
+
+            UPDATE package as p
+                SET repo_version = rv.id
+                FROM repo_version as rv
+                WHERE rv.decoded = p.id;
+
+            ALTER TABLE repo_version
+                DROP COLUMN decoded;
+
+            ALTER TABLE package
+                DROP CONSTRAINT package_pkey,
+                ADD PRIMARY KEY (repo_version);
+        |]
+
+dropIdFieldFromPackage :: MigrationCommand
+dropIdFieldFromPackage =
+    MigrationScript "drop-id-field-from-package" $
+    encodeUtf8
+        [text|
+            ALTER TABLE package
+                DROP COLUMN id;
+        |]
+
+dropRepoFromDependency :: MigrationCommand
+dropRepoFromDependency =
+    MigrationScript "drop-repo-from-dependency" $
+    encodeUtf8
+        [text|
+            ALTER TABLE dependency
+                DROP COLUMN repo;
         |]

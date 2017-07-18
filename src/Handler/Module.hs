@@ -30,10 +30,10 @@ getModulesR = do
                      (from $ \rv2 -> do
                           where_ $ rv2 ^. RepoVersionRepo ==. r ^. RepoId
                           pure $ max_ $ rv2 ^. RepoVersionVersion))
-            on $ rv ^. RepoVersionDecoded ==. just (p ^. PackageId)
+            on $ p ^. PackageRepoVersion ==. rv ^. RepoVersionId
             on $ p ^. PackageLibrary ==. just (l ^. LibraryId)
-            on $ pm ^. PackageModulePackageId ==. p ^. PackageId
-            on $ pm ^. PackageModuleModuleId ==. m ^. ModuleId
+            on $ pm ^. PackageModuleRepoVersion ==. p ^. PackageRepoVersion
+            on $ m ^. ModuleId ==. pm ^. PackageModuleModuleId
             orderBy [asc $ m ^. ModuleName, desc $ rv ^. RepoVersionCommittedAt]
             pure (m, pm, l, p, rv, r)
     wrapper <- newIdent

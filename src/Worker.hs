@@ -25,7 +25,7 @@ import qualified Database.Persist as P
 import Database.Persist.Postgresql
        (createPostgresqlPool, pgConnStr, pgPoolSize)
 import GHC.IO.Exception (ExitCode(..))
-import Import.Worker hiding ((<>), isNothing)
+import Import.Worker hiding ((<>), isNothing, on)
 import LoadEnv (loadEnv, loadEnvFrom)
 import Options.Applicative
 import System.Directory (doesFileExist)
@@ -156,20 +156,26 @@ reparsePackages =
 
 reparseAllPackages :: WorkerT ()
 reparseAllPackages =
-    void $ runWorkerDB $ allRepoVersions >>= traverse decodePackageJSON
+    void $ runWorkerDB $ allPackageChecks >>= traverse decodePackageJSON
 
 checkTags :: WorkerT ()
 checkTags = void $ runWorkerDB $ neverCheckedForTags >>= traverse checkRepoTags
 
-allRepoVersions :: WorkerDB [Entity RepoVersion]
-allRepoVersions = select $ from pure
+allPackageChecks :: WorkerDB [Entity PackageCheck]
+allPackageChecks = select $ from pure
 
-decodedPackageIsNull :: WorkerDB [Entity RepoVersion]
+decodedPackageIsNull :: WorkerDB [Entity PackageCheck]
 decodedPackageIsNull =
     select $
-    from $ \repoVersion -> do
-        where_ (isNothing (repoVersion ^. RepoVersionDecoded))
-        pure repoVersion
+    from $ \(repoVersion `InnerJoin` packageCheck `LeftOuterJoin` package) -> do
+        on $
+            just (repoVersion ^. RepoVersionId) ==. package ?.
+            PackageRepoVersion
+        on $
+            repoVersion ^. RepoVersionId ==. packageCheck ^.
+            PackageCheckRepoVersion
+        where_ $ isNothing (package ?. PackageRepoVersion)
+        pure packageCheck
 
 neverCheckedForTags :: WorkerDB [Entity Repo]
 neverCheckedForTags =
@@ -281,12 +287,6 @@ checkNewTag repoId gitDir gitTag = do
     case result of
         Left err -> void $ $(logError) (tshow err)
         Right _ -> do
-            contents <-
-                do let elmPackageJson = gitDir </> "elm-package.json"
-                   hasElmPackage <- liftIO $ doesFileExist elmPackageJson
-                   if hasElmPackage
-                       then liftIO $ Just <$> readFile elmPackageJson
-                       else pure Nothing
             committedAt <- tagCommittedAt gitDir (unpack $ gitTagSha gitTag)
             case committedAt of
                 Left err2 -> void $ $(logError) (tshow err2)
@@ -298,40 +298,65 @@ checkNewTag repoId gitDir gitTag = do
                             , repoVersionVersion = gitTagVersion gitTag
                             , repoVersionSha = gitTagSha gitTag
                             , repoVersionTag = gitTagTag gitTag
-                            , repoVersionPackage = contents
                             , repoVersionCommittedAt = committed
-                            , repoVersionDecodeError = Nothing
-                            , repoVersionDecoded = Nothing
                             }
-                            [ RepoVersionTag P.=. gitTagTag gitTag
-                            , RepoVersionVersion P.=. gitTagVersion gitTag
+                            [ RepoVersionVersion P.=. gitTagVersion gitTag
                             , RepoVersionSha P.=. gitTagSha gitTag
-                            , RepoVersionPackage P.=. contents
                             , RepoVersionCommittedAt P.=. committed
                             ]
-                    decodePackageJSON repoVersion
+                    let packageCheckKey =
+                            PackageCheckKey $ entityKey repoVersion
+                    let elmPackageJson = gitDir </> "elm-package.json"
+                    hasElmPackage <- liftIO $ doesFileExist elmPackageJson
+                    if hasElmPackage
+                        then do
+                            contents <- liftIO $ readFile elmPackageJson
+                            let packageCheck =
+                                    Entity
+                                        packageCheckKey
+                                        PackageCheck
+                                        { packageCheckPackage = Just contents
+                                        , packageCheckDecodeError = Nothing
+                                        , packageCheckRepoVersion =
+                                              entityKey repoVersion
+                                        }
+                            repsert
+                                (entityKey packageCheck)
+                                (entityVal packageCheck)
+                            decodePackageJSON packageCheck
+                        else repsert
+                                 packageCheckKey
+                                 PackageCheck
+                                 { packageCheckPackage = Nothing
+                                 , packageCheckDecodeError = Nothing
+                                 , packageCheckRepoVersion =
+                                       entityKey repoVersion
+                                 }
 
--- If we couldn't decode, then we just record the error
-decodePackageJSON :: Entity RepoVersion -> WorkerDB ()
-decodePackageJSON repoVersion =
-    forM_ ((repoVersionPackage . entityVal) repoVersion) $ \contents ->
+decodePackageJSON :: Entity PackageCheck -> WorkerDB ()
+decodePackageJSON pc =
+    forM_ ((packageCheckPackage . entityVal) pc) $ \contents ->
         case eitherDecodeStrict (encodeUtf8 contents) of
             Left err ->
-                update $ \p -> do
+                update $ \table -> do
                     set
-                        p
-                        [ RepoVersionDecodeError =. (val . Just . pack) err
-                        , RepoVersionDecoded =. val Nothing
-                        ]
-                    where_ $ p ^. RepoVersionId ==. val (entityKey repoVersion)
-            -- If we could decode, then go to work
+                        table
+                        [PackageCheckDecodeError =. (val . Just . pack) err]
+                    where_ $ table ^. PackageCheckId ==. val (entityKey pc)
             Right p -> do
+                update $ \table -> do
+                    set table [PackageCheckDecodeError =. val Nothing]
+                    where_ $ table ^. PackageCheckId ==. val (entityKey pc)
                 libraryId <-
                     forM (elmPackageLibraryName p) $ \libraryName ->
                         either entityKey id <$> insertBy Library {..}
-                let package =
+                package <-
+                    repsert
+                        (PackageKey $ packageCheckRepoVersion $ entityVal pc)
                         Package
-                        { packageVersion = elmPackageVersion p
+                        { packageRepoVersion =
+                              packageCheckRepoVersion $ entityVal pc
+                        , packageVersion = elmPackageVersion p
                         , packageSummary = elmPackageSummary p
                         , packageRepository = elmPackageRepository p
                         , packageLibrary = libraryId
@@ -339,17 +364,13 @@ decodePackageJSON repoVersion =
                         , packageNativeModules = elmPackageNativeModules p
                         , packageElmVersion = elmPackageElmVersion p
                         }
-                packageId <-
-                    case (repoVersionDecoded . entityVal) repoVersion of
-                        Just existingId ->
-                            replace existingId package >> pure existingId
-                        Nothing -> insert package
                 forM_ (nub $ elmPackageModules p) $ \moduleName -> do
                     moduleId <- either entityKey id <$> insertBy Module {..}
                     void $
                         insertUnique
                             PackageModule
-                            { packageModulePackageId = packageId
+                            { packageModuleRepoVersion =
+                                  (packageCheckRepoVersion . entityVal) pc
                             , packageModuleModuleId = moduleId
                             , packageModuleExposed = True
                             }
@@ -357,20 +378,17 @@ decodePackageJSON repoVersion =
                     flip traverseWithKey (elmPackageDependencies p) $ \libraryName dependencyVersion -> do
                         dependencyLibrary <-
                             either entityKey id <$> insertBy Library {..}
-                        let dependencyPackage = packageId
-                        let repoGitUrl =
-                                "https://github.com/" <> libraryName <> ".git"
-                        let repoSubmittedBy = Nothing
-                        dependencyRepo <-
-                            either entityKey id <$> insertBy Repo {..}
+                        let dependencyRepoVersion =
+                                (packageCheckRepoVersion . entityVal) pc
+                        -- We insert the Repo that the dependency represents so that
+                        -- we'll check it as well.
+                        void $
+                            insertBy
+                                Repo
+                                { repoGitUrl = libraryNameToGitUrl libraryName
+                                , repoSubmittedBy = Nothing
+                                }
                         void $ insertUnique Dependency {..}
-                update $ \r -> do
-                    set
-                        r
-                        [ RepoVersionDecoded =. val (Just packageId)
-                        , RepoVersionDecodeError =. val Nothing
-                        ]
-                    where_ $ r ^. RepoVersionId ==. val (entityKey repoVersion)
 
 tagCommittedAt ::
        MonadIO m
@@ -460,10 +478,13 @@ scrape = do
             runWorkerDB $
             forM_ packages $ \package -> do
                 let libraryName = officialPackageName package
-                let repoGitUrl = "https://github.com/" <> libraryName <> ".git"
+                let repoGitUrl = libraryNameToGitUrl libraryName
                 let repoSubmittedBy = Nothing
                 void $ insertBy Repo {..}
                 publishedVersionLibrary <-
                     either entityKey id <$> insertBy Library {..}
                 forM_ (officialPackageVersions package) $ \publishedVersionVersion ->
                     void $ insertBy PublishedVersion {..}
+
+libraryNameToGitUrl :: Text -> Text
+libraryNameToGitUrl libraryName = "https://github.com/" <> libraryName <> ".git"

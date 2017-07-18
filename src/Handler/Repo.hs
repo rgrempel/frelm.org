@@ -46,26 +46,28 @@ handle404 =
 
 getRepoVersionR :: RepoId -> Text -> Handler Html
 getRepoVersionR repoId tag = do
-    (v, p) <-
+    (v, pc, p) <-
         handle404 $
         runDB $
         select $
-        from $ \(v `LeftOuterJoin` p) -> do
-            on $ v ^. RepoVersionDecoded ==. p ?. PackageId
+        from $ \(v `LeftOuterJoin` pc `LeftOuterJoin` p) -> do
+            on $ pc ?. PackageCheckRepoVersion ==. p ?. PackageRepoVersion
+            on $ just (v ^. RepoVersionId) ==. pc ?. PackageCheckRepoVersion
             where_ $
                 (v ^. RepoVersionRepo ==. val repoId) &&.
                 (v ^. RepoVersionTag ==. val tag)
-            pure (v, p)
+            pure (v, pc, p)
     defaultLayout
         [whamlet|
             <div .container>
                 <div .row>
                     <div .col-lg-12>
-                        ^{viewRepoVersion v p}
+                        ^{viewRepoVersion v}
+                        ^{viewPackageCheck pc p}
         |]
 
-viewRepoVersion :: Entity RepoVersion -> Maybe (Entity Package) -> Widget
-viewRepoVersion (Entity _ v) decoded =
+viewRepoVersion :: Entity RepoVersion -> Widget
+viewRepoVersion (Entity _ v) =
     [whamlet|
         <table .table .table-striped .table-responsive>
             <tr>
@@ -77,32 +79,49 @@ viewRepoVersion (Entity _ v) decoded =
             <tr>
                 <td>Commmitted At
                 <td>#{(tshow . repoVersionCommittedAt) v}
+    |]
 
-        $case repoVersionPackage v
+viewPackageCheck ::
+       Maybe (Entity PackageCheck) -> Maybe (Entity Package) -> Widget
+viewPackageCheck pc p =
+    [whamlet|
+        $case pc
             $of Nothing
                 <div .alert.alert-danger>
-                    We were not able to find the expected
+                    We have not yet checked for the
                     <code>elm-package.json
-                    at this tag.
-            $of Just package
-                $case decoded
-                    $of Just d
-                        ^{viewDecodedPackage d}
+                    file.
+
+            $of Just (Entity _ packageCheck)
+                $case packageCheckPackage packageCheck
                     $of Nothing
                         <div .alert.alert-danger>
-                            <p>
-                                We encountered the following errors
-                                when trying to decode the
-                                <code>elm-package.json
-                                file.
-                            $forall err <- repoVersionDecodeError v
-                                <p>
-                                    <pre>
-                                        #{err}
-                            $forall p <- repoVersionPackage v
-                                <p>
-                                    <pre>
-                                        #{p}
+                            We were not able to find the expected
+                            <code>elm-package.json
+                            at this tag.
+
+                    $of Just package
+                        $case p
+                            $of Just decoded
+                                ^{viewDecodedPackage decoded}
+
+                            $of Nothing
+                                <div .alert.alert-danger>
+                                    <p>
+                                        We encountered the following errors
+                                        when trying to decode the
+                                        <code>elm-package.json
+                                        file.
+
+                                    $forall err <- packageCheckDecodeError packageCheck
+                                        <p>
+                                            <pre>
+                                                #{err}
+
+                                    $forall contents <- packageCheckPackage packageCheck
+                                        <p>
+                                            <pre>
+                                                #{contents}
     |]
 
 viewDecodedPackage :: Entity Package -> Widget
@@ -133,7 +152,7 @@ getReposR = do
         runDB $
         select $
         from $ \(repo `LeftOuterJoin` version `LeftOuterJoin` package) -> do
-            on $ version ?. RepoVersionDecoded ==. just (package ?. PackageId)
+            on $ version ?. RepoVersionId ==. package ?. PackageRepoVersion
             on $
                 (version ?. RepoVersionRepo ==. just (repo ^. RepoId)) &&.
                 (version ?. RepoVersionVersion ==.

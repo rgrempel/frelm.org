@@ -29,7 +29,7 @@ getLibrariesR = do
         select $
         from $ \(r `InnerJoin` rv `InnerJoin` p `InnerJoin` l) -> do
             on $ p ^. PackageLibrary ==. just (l ^. LibraryId)
-            on $ rv ^. RepoVersionDecoded ==. just (p ^. PackageId)
+            on $ rv ^. RepoVersionId ==. (p ^. PackageRepoVersion)
             on $
                 (r ^. RepoId ==. rv ^. RepoVersionRepo) &&.
                 (just (rv ^. RepoVersionVersion) ==.

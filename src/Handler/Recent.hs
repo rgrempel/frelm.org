@@ -26,10 +26,8 @@ getRecentR = do
         select $
         distinct $
         from $ \(repoVersion `InnerJoin` package `InnerJoin` library) -> do
-            on (package ^. PackageLibrary ==. just (library ^. LibraryId))
-            on
-                (repoVersion ^. RepoVersionDecoded ==.
-                 just (package ^. PackageId))
+            on $ package ^. PackageLibrary ==. just (library ^. LibraryId)
+            on $ repoVersion ^. RepoVersionId ==. package ^. PackageRepoVersion
             orderBy [desc $ repoVersion ^. RepoVersionCommittedAt]
             limit 1000
             pure (repoVersion, package, library)
