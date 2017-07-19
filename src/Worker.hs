@@ -511,7 +511,7 @@ scrape :: WorkerT ()
 scrape = do
     result <- fetchOfficialPackages
     case result of
-        Left err -> print err
+        Left err -> $(logError) (tshow err)
         Right packages ->
             runWorkerDB $
             forM_ packages $ \package -> do
