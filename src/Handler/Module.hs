@@ -17,9 +17,7 @@ getModulesR = do
     result <-
         fmap
             (Prelude.groupBy
-                 (Prelude.on
-                      (==)
-                      (\(Entity moduleId _, _, _, _, _, _) -> moduleId))) $
+                 (Prelude.on (==) (\(moduleId, _, _, _) -> moduleId))) $
         runDB $
         select $
         from $ \(m `InnerJoin` pm `InnerJoin` p `InnerJoin` l `InnerJoin` rv `InnerJoin` r) -> do
@@ -35,7 +33,7 @@ getModulesR = do
             on $ pm ^. PackageModuleRepoVersion ==. p ^. PackageRepoVersion
             on $ m ^. ModuleId ==. pm ^. PackageModuleModuleId
             orderBy [asc $ m ^. ModuleName, desc $ rv ^. RepoVersionCommittedAt]
-            pure (m, pm, l, p, rv, r)
+            pure (m ^. ModuleId, m ^. ModuleName, l ^. LibraryName, rv)
     wrapper <- newIdent
     defaultLayout $ do
         setTitle "Elm Modules"
@@ -54,12 +52,12 @@ getModulesR = do
                     <div .col-lg-12>
                         <dl>
                             $forall byModule <- result
-                                $forall (Entity _ moduleRec, _, _, _, _ ,_) <- safeHead byModule
-                                    <dt>#{moduleName moduleRec}
+                                $forall (_, moduleName, _, _) <- safeHead byModule
+                                    <dt>#{unValue moduleName}
                                     <dd>
-                                        $forall (_, _, Entity _ library, _, Entity rvId rv, Entity repoId _) <- byModule
+                                        $forall (_, _, libraryName, Entity _ rv) <- byModule
                                             <div>
-                                                #{libraryName library} /
+                                                #{unValue libraryName} /
                                                 <a href="@{RepoVersionR (repoVersionRepo rv) (repoVersionTag rv)}">#{(toText . repoVersionVersion) rv}
         |]
         toWidget
@@ -74,5 +72,5 @@ getModulesR = do
 safeHead :: [a] -> Maybe a
 safeHead a =
     case a of
-        x:xs -> Just x
+        x:_ -> Just x
         [] -> Nothing
