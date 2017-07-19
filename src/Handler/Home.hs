@@ -23,7 +23,7 @@ getHomeR = do
                 <div .container .#{docs}>
                     <div .row>
                         <p>
-                            Elm has a very fine website dedicated to
+                            Elm has a very fine official website dedicated to
                             discovering Elm packages, at
                             <a href="http://package.elm-lang.org">http://package.elm-lang.org.
                             You should definitely consider trying that website,
@@ -51,19 +51,18 @@ getHomeR = do
                         <h3>Terminology
 
                         <p>
-                            Here are some notes about the terminology I'm using
+                            Here are some notes about the terminology we're using
                             here.
                         <ul>
                             <li>
-                                A "<b>repository</b>" refers to a Git
-                                repository (which is the only kind of
-                                repository we support here).
+                                A "<b>repository</b>" refers to the Git
+                                repository where we found something.
                             <li>
                                 A "<b>library</b>" is something like
                                 "elm-lang/core" ... that is, the "key" you use
                                 to identifiy a dependency.
                             <li>
-                                A "<b>package</b>" is a specific version in a
+                                A "<b>package</b>" is a specific version of a
                                 repository, implementing a library.
                             <li>
                                 A "<b>module</b>" is something like `List` ...

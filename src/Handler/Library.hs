@@ -16,9 +16,10 @@ import qualified Import.App as Prelude
 -- | What we want to "get" here is every library, along with some sense
 -- of the packages which implement the library. For that, so far, we
 -- consult the **declared** reppository in the elm-package.json,
--- ignoring where we **actually** obtained it. (This is in anticipation
--- of doing something interesting with the `dependency-sources` that
--- `elm-install` uses).
+-- ignoring where we **actually** obtained it. (Whether this makes sense
+-- will need to be reconsidered at some point -- will need to do some
+-- investigation of the signfiicance of the declared repository vs.
+-- the actual repository).
 getLibrariesR :: Handler Html
 getLibrariesR = do
     result <-
@@ -42,6 +43,7 @@ getLibrariesR = do
             pure (l, r, rv, p)
     wrapper <- newIdent
     defaultLayout $ do
+        setTitle "Elm Libraries"
         [whamlet|
             <div .container.#{wrapper}>
                 <div .row>
@@ -57,11 +59,16 @@ getLibrariesR = do
                         a "library" and a "repository", in the sense that
                         <code>elm-lang/core</code> is necessarily to be found
                         at <code>https://github.com/elm-lang/core.git</code>.
-                        However, I'm distinguishing between the two in the hope
-                        of eventually doing something interesting with the
-                        <code>dependency-sources</code> used by
-                        <code>elm-install</code>, which would make it possible
-                        to have alternative implementations of a "library".
+                        And, one would expect the <code>repository</code> field of the
+                        <code>elm-package.json</code> file to reflect that.
+                    <p>
+                        For now, at least, the list here is based on an
+                        interpretation of the <code>repository</code> field in
+                        the <code>elm-package.json</code> file, rather than the
+                        actual location of the repository where we found it. If
+                        you want to see a list of where we found things, you
+                        can look at the <a href="@{ReposR}">repositories
+                        page</a>.
                 <div .row>
                     <div .col-lg-12>
                         <dl>

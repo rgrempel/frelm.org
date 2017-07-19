@@ -98,7 +98,7 @@ viewPackageCheck pc p =
                         <div .alert.alert-danger>
                             We were not able to find the expected
                             <code>elm-package.json
-                            at this tag.
+                            file at this tag.
 
                     $of Just package
                         $case p
@@ -166,39 +166,34 @@ getReposR = do
     isLoggedIn <- isJust <$> maybeAuth
     wrapper <- newIdent
     defaultLayout $ do
+        setTitle "Elm Repositories"
         [whamlet|
             <div .container .#{wrapper}>
                 <div .row>
                     <div .col-md-6>
                         <p>
-                            This is a list of all the repositories which
-                            we check for new package versions.
+                            This is a list of all the repositories which we
+                            check for new versions.
                         <p>
-                            If you have published a package to the official Elm package
-                            manager, then your repository should appear here automatically
+                            Note that we list the repositories below according to
+                            where we actually found them, not necessarily what is
+                            declared in the <code>repository</code> field of an
+                            <code>elm-package.json</code> file. For a list that
+                            is based on the <code>repository</code>, see the
+                            <a href="@{LibrariesR}">libraries page</a>.
+                    <div .col-md-6>
+                        <p>
+                            If you have published a package to the
+                            <a href="http://package.elm-lang.org">official Elm package site</a>,
+                            then your repository should appear here automatically
                             (eventually -- we check about once per day).
                         <p>
                             If you'd like to add a repository here manually,
-                            you can do so using the form on the right, by
-                            submitting a Git URL that looks something like the
-                            examples. That is the URL we will use to fetch your
-                            package via operations such as `git ls-remote` and
-                            `git clone`.
-                        <p>
-                            <small>
-                                One thing you might reasonably wonder is how the
-                                list of "repositories" differs from the list of
-                                "libraries." Tecnically, the difference is that the
-                                reponsitories track the actual Git URLs we use in
-                                order to fetch things. The libraries track the
-                                repository <b>declared</b> in the
-                                <code>elm-package.json</code> file. Normally, these
-                                have a well-defined relationship, but we don't
-                                entirely count on it. This is in part because I'd
-                                eventually like to do something useful with the
-                                <code>dependency-sources</code> used by
-                                <code>elm-install</code>.
-                    <div .col-md-6>
+                            you can do so using the form below, by submitting a
+                            Git URL that looks something like the examples.
+                            That is the URL we will use to fetch your package
+                            via operations such as `git ls-remote` and `git
+                            clone`.
                         $if isLoggedIn
                             <p>
                                 <form method=post action=@{ReposR} enctype=#{enctype}>

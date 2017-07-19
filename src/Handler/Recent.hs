@@ -33,11 +33,18 @@ getRecentR = do
             pure (repoVersion, package, library)
     wrapper <- newIdent
     defaultLayout $ do
+        setTitle "Recent Elm Modules"
         [whamlet|
             <div .container.#{wrapper}>
                 <div .row>
                     <p>
-                        This is a list of recently published versions.
+                        This is a list of recently published Elm packages. The
+                        identifiers listed below are derived from the
+                        <code>repository</code> field in the package's
+                        <code>elm-package.json</code> file, rather than the
+                        repository where we actually found the package. If you
+                        want to know the actual location of the repository,
+                        follow the package link.
                 <div .row>
                     <div .col-lg-12>
                             $forall byDay <- result

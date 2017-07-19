@@ -38,11 +38,18 @@ getModulesR = do
             pure (m, pm, l, p, rv, r)
     wrapper <- newIdent
     defaultLayout $ do
+        setTitle "Elm Modules"
         [whamlet|
             <div .container.#{wrapper}>
                 <div .row>
                     <p>
-                        This is a list of all the Elm modules we know about.
+                        This is a list of all the Elm modules we know about,
+                        with links to packages that implement them. You'll see
+                        that there is some apparent duplication in those links
+                        -- this mainly has to do with repositories that were
+                        re-named at some point. We'll work on filtering out old
+                        names eventually. (In some cases, there really is more
+                        than one package that implements a module).
                 <div .row>
                     <div .col-lg-12>
                         <dl>
