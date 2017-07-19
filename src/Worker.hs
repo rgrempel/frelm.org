@@ -248,7 +248,7 @@ fetchGitTags repo = do
     (exitCode, out, err) <-
         liftIO $ readCreateProcessWithExitCode (fetchTagsProcess repo) ""
     ran <- liftIO getCurrentTime
-    insert_
+    upsert
         TagCheck
         { tagCheckStdout = pack out
         , tagCheckStderr = pack err
@@ -256,6 +256,11 @@ fetchGitTags repo = do
         , tagCheckRan = ran
         , tagCheckRepo = entityKey repo
         }
+        [ TagCheckStdout P.=. pack out
+        , TagCheckStderr P.=. pack err
+        , TagCheckExitCode P.=. exitCode
+        , TagCheckRan P.=. ran
+        ]
     pure $ (rights . fmap (parse parseTag "line") . lines) out
 
 data GitTag = GitTag

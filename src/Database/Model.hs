@@ -51,6 +51,8 @@ mkPersist
             stdout Text
             stderr Text
 
+            UniqueTagCheck repo
+
         CloneError
             repo RepoId
             ran UTCTime

@@ -63,6 +63,7 @@ migrations =
     , dropIdFieldFromPackage
     , dropRepoFromDependency
     , rejigPackagesAgain
+    , justOneTagCheckPerRepo
     ]
 
 migrateInitial :: MigrationCommand
@@ -688,4 +689,14 @@ rejigPackagesAgain =
                 ADD COLUMN id
                     BIGSERIAL
                     PRIMARY KEY;
+        |]
+
+justOneTagCheckPerRepo :: MigrationCommand
+justOneTagCheckPerRepo =
+    MigrationScript "just-one-tagcheck-per-repo" $
+    encodeUtf8
+        [text|
+            ALTER TABLE tag_check
+                ADD CONSTRAINT tag_check_unique
+                    UNIQUE (repo);
         |]
