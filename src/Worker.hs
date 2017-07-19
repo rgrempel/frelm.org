@@ -9,7 +9,9 @@
 
 module Worker where
 
-import Control.Monad.Logger (LoggingT, logError, runStdoutLoggingT)
+import Control.Monad.Logger
+       (LogLevel(..), LogSource, LoggingT, filterLogger, logError,
+        runStdoutLoggingT)
 import Control.Monad.Trans.Resource (ResourceT, runResourceT)
 import Data.Aeson (eitherDecodeStrict)
 import Data.ElmPackage
@@ -60,7 +62,7 @@ data Command
     deriving (Show)
 
 data Args = Args
-    { argsVerbosity :: Int
+    { argsVerbosity :: LogLevel
     , argsCommand :: Command
     }
 
@@ -70,7 +72,12 @@ parseArgs = info (mainParser <**> helper) description
     description = fullDesc <> progDesc "Frelm worker"
     mainParser = Args <$> parseVerbosity <*> parseCommand
     parseVerbosity =
-        length <$> OA.many (flag' () (short 'v' <> help "Verbosity"))
+        (toLogLevel . length) <$>
+        OA.many
+            (flag' () $
+             short 'v' <>
+             help
+                 "Set verbosity. Defaults to Error, then each -v increases to Warn, Info then Debug. So, '-vvv' for Debug.")
     parseCommand =
         hsubparser $
         command "add-repo" addRepoParser <> command "migrate" migrateParser <>
@@ -142,13 +149,23 @@ workerMain = do
     case schemaValidation of
         MigrationError err -> die err
         MigrationSuccess ->
-            runStdoutLoggingT $ do
+            runStdoutLoggingT $
+            filterLogger (logWhen $ argsVerbosity workerArgs) $ do
                 workerConnPool <-
                     createPostgresqlPool
                         (pgConnStr $ workerDatabaseConf workerSettings)
                         (pgPoolSize $ workerDatabaseConf workerSettings)
                 let worker = Worker {..}
                 runResourceT $ runReaderT runWorker worker
+
+toLogLevel :: Int -> LogLevel
+toLogLevel 0 = LevelError
+toLogLevel 1 = LevelWarn
+toLogLevel 2 = LevelInfo
+toLogLevel _ = LevelDebug
+
+logWhen :: LogLevel -> LogSource -> LogLevel -> Bool
+logWhen verbosity _ level = level >= verbosity
 
 crawl :: WorkerT ()
 crawl =
@@ -256,19 +273,20 @@ fetchGitTags repo = do
     (exitCode, out, err) <-
         liftIO $ readCreateProcessWithExitCode (fetchTagsProcess repo) ""
     ran <- liftIO getCurrentTime
-    upsert
-        TagCheck
-        { tagCheckStdout = pack out
-        , tagCheckStderr = pack err
-        , tagCheckExitCode = exitCode
-        , tagCheckRan = ran
-        , tagCheckRepo = entityKey repo
-        }
-        [ TagCheckStdout P.=. pack out
-        , TagCheckStderr P.=. pack err
-        , TagCheckExitCode P.=. exitCode
-        , TagCheckRan P.=. ran
-        ]
+    void $
+        upsert
+            TagCheck
+            { tagCheckStdout = pack out
+            , tagCheckStderr = pack err
+            , tagCheckExitCode = exitCode
+            , tagCheckRan = ran
+            , tagCheckRepo = entityKey repo
+            }
+            [ TagCheckStdout P.=. pack out
+            , TagCheckStderr P.=. pack err
+            , TagCheckExitCode P.=. exitCode
+            , TagCheckRan P.=. ran
+            ]
     pure $ (rights . fmap (parse parseTag "line") . lines) out
 
 data GitTag = GitTag
@@ -363,7 +381,7 @@ decodePackageJSON pc =
                 libraryId <-
                     forM (elmPackageLibraryName p) $ \libraryName ->
                         either entityKey id <$> insertBy Library {..}
-                package <-
+                void $
                     upsert
                         Package
                         { packageRepoVersion =
