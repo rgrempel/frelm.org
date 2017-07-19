@@ -161,12 +161,13 @@ instance Yesod App where
                       , menuItemRoute = ModulesR
                       , menuItemAccessCallback = True
                       }
-                , NavbarRight
+                {-, NavbarRight
                       MenuItem
                       { menuItemLabel = "Profile"
                       , menuItemRoute = ProfileR
                       , menuItemAccessCallback = isJust muser
                       }
+                -}
                 , NavbarRight
                       MenuItem
                       { menuItemLabel = "Login"
