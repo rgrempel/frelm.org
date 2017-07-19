@@ -27,7 +27,7 @@ import Database.Persist.Postgresql
 import GHC.IO.Exception (ExitCode(..))
 import Import.Worker hiding ((<>), isNothing, on)
 import LoadEnv (loadEnv, loadEnvFrom)
-import Options.Applicative
+import Options.Applicative as OA
 import System.Directory (doesFileExist)
 import System.Exit (die)
 import System.FilePath ((</>))
@@ -45,7 +45,7 @@ type WorkerDB = ReaderT SqlBackend WorkerT
 data Worker = Worker
     { workerSettings :: WorkerSettings
     , workerConnPool :: ConnectionPool
-    , workerCommand :: Command
+    , workerArgs :: Args
     }
 
 data Command
@@ -53,55 +53,63 @@ data Command
     | Crawl
     | RecheckRepo Int64
     | RecheckTags
-    | ReparsePackages
+    | ReparseMissingPackages
     | ReparseAllPackages
     | RunMigrations
     | Scrape
     deriving (Show)
 
-parseArgs :: ParserInfo Command
-parseArgs = info sub fullDesc
+data Args = Args
+    { argsVerbosity :: Int
+    , argsCommand :: Command
+    }
+
+parseArgs :: ParserInfo Args
+parseArgs = info (mainParser <**> helper) description
   where
-    sub =
-        subparser $
-        command
-            "add-repo"
-            (info addRepoOptions $
-             fullDesc <> progDesc "Add a new repository to the database.") <>
-        command
-            "migrate"
-            (info migrateOptions $
-             fullDesc <> progDesc "Run database migrations") <>
-        command "crawl" (info crawlOptions $ fullDesc <> progDesc "Crawl") <>
-        command
-            "recheck-tags"
-            (info recheckTagsOptions $ fullDesc <> progDesc "Recheck tags") <>
-        command
-            "recheck-repo"
-            (info recheckRepoOptions $
-             fullDesc <> progDesc "Recheck a repo with the specified ID.") <>
-        command "reparse" (info reparseOptions $ fullDesc <> progDesc "Reparse") <>
-        command
-            "reparse-all"
-            (info reparseAllOptions $ fullDesc <> progDesc "Reparse All") <>
-        command
-            "scrape"
-            (info scrapeOptions $ fullDesc <> progDesc "Scrape packages")
-    addRepoOptions = fmap AddRepo $ argument str $ metavar "REPOSITORY"
-    recheckRepoOptions = fmap RecheckRepo $ argument auto $ metavar "REPO_ID"
-    migrateOptions = pure RunMigrations
-    crawlOptions = pure Crawl
-    recheckTagsOptions = pure RecheckTags
-    reparseOptions = pure ReparsePackages
-    reparseAllOptions = pure ReparseAllPackages
-    scrapeOptions = pure Scrape
+    description = fullDesc <> progDesc "Frelm worker"
+    mainParser = Args <$> parseVerbosity <*> parseCommand
+    parseVerbosity =
+        length <$> OA.many (flag' () (short 'v' <> help "Verbosity"))
+    parseCommand =
+        hsubparser $
+        command "add-repo" addRepoParser <> command "migrate" migrateParser <>
+        command "crawl" crawlParser <>
+        command "recheck-tags" recheckTagsParser <>
+        command "recheck-repo" recheckRepoParser <>
+        command "reparse-missing" reparseMissingParser <>
+        command "reparse-all" reparseAllParser <>
+        command "scrape" scrapeParser
+    addRepoParser =
+        info
+            (fmap AddRepo $ argument str $ metavar "REPOSITORY")
+            (fullDesc <> progDesc "Add a new repository to the database.")
+    migrateParser =
+        info
+            (pure RunMigrations)
+            (fullDesc <> progDesc "Run database migrations")
+    crawlParser = info (pure Crawl) (fullDesc <> progDesc "Crawl")
+    recheckTagsParser =
+        info (pure RecheckTags) (fullDesc <> progDesc "Recheck tags")
+    recheckRepoParser =
+        info
+            (fmap RecheckRepo $
+             argument auto $ metavar "REPO_ID" <> help "repoId to recheck")
+            (fullDesc <> progDesc "Recheck a repo")
+    reparseMissingParser =
+        info
+            (pure ReparseMissingPackages)
+            (fullDesc <> progDesc "Reparse missing")
+    reparseAllParser =
+        info (pure ReparseAllPackages) (fullDesc <> progDesc "Reparse All")
+    scrapeParser = info (pure Scrape) (fullDesc <> progDesc "Scrape packages")
 
 runWorkerDB :: WorkerDB a -> WorkerT a
 runWorkerDB workerDB = asks workerConnPool >>= runSqlPool workerDB
 
 runWorker :: WorkerT ()
 runWorker = do
-    todo <- asks workerCommand
+    todo <- asks (argsCommand . workerArgs)
     case todo of
         AddRepo repo ->
             runWorkerDB $
@@ -115,7 +123,7 @@ runWorker = do
                 MigrationSuccess -> pure ()
                 MigrationError err -> liftIO $ die err
         Crawl -> crawl
-        ReparsePackages -> reparsePackages
+        ReparseMissingPackages -> reparseMissingPackages
         ReparseAllPackages -> reparseAllPackages
         Scrape -> scrape
 
@@ -125,10 +133,10 @@ workerMain = do
     loadEnv
     loadEnvFrom "./.env-worker"
     workerSettings <- loadYamlSettings [] [configSettingsYmlValue] useEnv
-    workerCommand <- execParser parseArgs
+    workerArgs <- execParser parseArgs
     -- We short-circuit the validation if we're running the migrations
     schemaValidation <-
-        case workerCommand of
+        case argsCommand workerArgs of
             RunMigrations -> pure MigrationSuccess
             _ -> validateSchema $ pgConnStr $ workerDatabaseConf workerSettings
     case schemaValidation of
@@ -150,8 +158,8 @@ crawl =
     -- Should probably have a "big" exception handler here that
     -- logs unexpected exceptions ... or something ...
 
-reparsePackages :: WorkerT ()
-reparsePackages =
+reparseMissingPackages :: WorkerT ()
+reparseMissingPackages =
     void $ runWorkerDB $ decodedPackageIsNull >>= traverse decodePackageJSON
 
 reparseAllPackages :: WorkerT ()
