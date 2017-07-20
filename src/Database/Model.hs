@@ -135,4 +135,9 @@ mkPersist
             moduleId ModuleId
             exposed Bool
             UniquePackageModule repoVersion moduleId
+
+        ScrapeResult
+            ran UTCTime
+            got Int Maybe
+            error Text Maybe
     |]

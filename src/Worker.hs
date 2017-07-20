@@ -510,19 +510,32 @@ cloneGitRepo repo toPath = do
 scrape :: WorkerT ()
 scrape = do
     result <- fetchOfficialPackages
-    case result of
-        Left err -> $(logError) (tshow err)
-        Right packages ->
-            runWorkerDB $
-            forM_ packages $ \package -> do
-                let libraryName = officialPackageName package
-                let repoGitUrl = libraryNameToGitUrl libraryName
-                let repoSubmittedBy = Nothing
-                void $ insertBy Repo {..}
-                publishedVersionLibrary <-
-                    either entityKey id <$> insertBy Library {..}
-                forM_ (officialPackageVersions package) $ \publishedVersionVersion ->
-                    void $ insertBy PublishedVersion {..}
+    ran <- liftIO getCurrentTime
+    runWorkerDB $
+        case result of
+            Left err ->
+                insert_
+                    ScrapeResult
+                    { scrapeResultRan = ran
+                    , scrapeResultGot = Nothing
+                    , scrapeResultError = Just $ tshow err
+                    }
+            Right packages -> do
+                insert_
+                    ScrapeResult
+                    { scrapeResultRan = ran
+                    , scrapeResultGot = Just $ length packages
+                    , scrapeResultError = Nothing
+                    }
+                forM_ packages $ \package -> do
+                    let libraryName = officialPackageName package
+                    let repoGitUrl = libraryNameToGitUrl libraryName
+                    let repoSubmittedBy = Nothing
+                    void $ insertBy Repo {..}
+                    publishedVersionLibrary <-
+                        either entityKey id <$> insertBy Library {..}
+                    forM_ (officialPackageVersions package) $ \publishedVersionVersion ->
+                        void $ insertBy PublishedVersion {..}
 
 libraryNameToGitUrl :: Text -> Text
 libraryNameToGitUrl libraryName = "https://github.com/" <> libraryName <> ".git"

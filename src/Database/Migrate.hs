@@ -64,6 +64,8 @@ migrations =
     , dropRepoFromDependency
     , rejigPackagesAgain
     , justOneTagCheckPerRepo
+    , addScrapeResult
+    , fixScrapeResultIndex
     ]
 
 migrateInitial :: MigrationCommand
@@ -699,4 +701,41 @@ justOneTagCheckPerRepo =
             ALTER TABLE tag_check
                 ADD CONSTRAINT tag_check_unique
                     UNIQUE (repo);
+        |]
+
+addScrapeResult :: MigrationCommand
+addScrapeResult =
+    MigrationScript "add-scrape-result" $
+    encodeUtf8
+        [text|
+            CREATE TABLE scrape_result
+                ( id
+                    BIGSERIAL
+                    PRIMARY KEY
+
+                , got
+                    INT
+
+                , error
+                    VARCHAR
+
+                , ran
+                    TIMESTAMPTZ
+                    NOT NULL
+                    DEFAULT CURRENT_TIMESTAMP
+                );
+
+            CREATE INDEX scrape_result_ran_idx
+                ON clone_error (ran);
+        |]
+
+fixScrapeResultIndex :: MigrationCommand
+fixScrapeResultIndex =
+    MigrationScript "fix-scrape-result-index" $
+    encodeUtf8
+        [text|
+            DROP INDEX scrape_result_ran_idx;
+
+            CREATE INDEX scrape_result_ran_idx
+                ON scrape_result (ran);
         |]
