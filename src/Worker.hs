@@ -10,15 +10,15 @@
 module Worker where
 
 import Control.Monad.Logger
-       (LogLevel(..), LogSource, LoggingT, filterLogger, logError,
-        runStdoutLoggingT)
-import Control.Monad.Trans.Resource (ResourceT, runResourceT)
+import Control.Monad.Trans.Resource
+       (ResourceT, resourceForkWith, runResourceT)
 import Data.Aeson (eitherDecodeStrict)
 import Data.ElmPackage
 import Data.List (nub)
 import Data.Map (traverseWithKey)
 import Data.OfficialPackage
 import Data.SemVer (Version, fromText)
+import Data.Time.Clock
 import Data.Time.ISO8601
 import Data.Yaml.Config (loadYamlSettings, useEnv)
 import Database.Esqueleto
@@ -39,7 +39,7 @@ import System.Process
         readProcessWithExitCode)
 import Text.Parsec as Parsec
 
-type WorkerT = ReaderT Worker (ResourceT (LoggingT IO))
+type WorkerT = ResourceT (ReaderT Worker (LoggingT IO))
 
 type WorkerDB = ReaderT SqlBackend WorkerT
 
@@ -156,7 +156,7 @@ workerMain = do
                         (pgConnStr $ workerDatabaseConf workerSettings)
                         (pgPoolSize $ workerDatabaseConf workerSettings)
                 let worker = Worker {..}
-                runResourceT $ runReaderT runWorker worker
+                runReaderT (runResourceT runWorker) worker
 
 toLogLevel :: Int -> LogLevel
 toLogLevel 0 = LevelError
@@ -167,13 +167,92 @@ toLogLevel _ = LevelDebug
 logWhen :: LogLevel -> LogSource -> LogLevel -> Bool
 logWhen verbosity _ level = level >= verbosity
 
+waitForChildren :: [MVar ()] -> WorkerT ()
+waitForChildren children =
+    case children of
+        [] -> pure ()
+        firstKid:restOfKids -> do
+            takeMVar firstKid
+            waitForChildren restOfKids
+
+forkChild :: WorkerT () -> WorkerT (MVar ())
+forkChild todo = do
+    mvar <- liftIO newEmptyMVar
+    void $ resourceForkWith (`forkFinally` (\_ -> putMVar mvar ())) todo
+    pure mvar
+
 crawl :: WorkerT ()
-crawl =
+crawl = do
+    scrapeMVar <- forkChild scrapeThread
+    checkTagsMVar <- forkChild checkTagsThread
+    waitForChildren [scrapeMVar, checkTagsMVar]
+
+waitInterval :: NominalDiffTime -> WorkerT ()
+waitInterval diff = liftIO $ threadDelay $ round diff * 1000000
+
+-- | We'll check the official Elm package site for totally new libraries no
+-- more than 4 times per day.
+scrapeInterval :: NominalDiffTime
+scrapeInterval = 86400 / 4
+
+scrapeThread :: WorkerT ()
+scrapeThread =
     forever $ do
-        checkTags
-        liftIO $ threadDelay $ 10 * 1000000
-    -- Should probably have a "big" exception handler here that
-    -- logs unexpected exceptions ... or something ...
+        now <- liftIO getCurrentTime
+        fetchLastRan <-
+            runWorkerDB $
+            select $ from $ \sr -> pure (max_ (sr ^. ScrapeResultRan))
+        let neverRan = (-scrapeInterval) `addUTCTime` now
+        let lastRan =
+                maybe
+                    neverRan
+                    (fromMaybe neverRan . unValue)
+                    (listToMaybe fetchLastRan)
+        let shouldRunIn = scrapeInterval `addUTCTime` lastRan `diffUTCTime` now
+        $(logInfo) $ "Should scrape in: " <> tshow shouldRunIn
+        if shouldRunIn <= 0
+            then do
+                $(logInfo) "Scraping"
+                scrape
+                waitInterval scrapeInterval
+            else waitInterval shouldRunIn
+
+-- | In addition to fetching tags for each repository no more than every so
+-- often, we also ensure that we wait a bit between each attempt to check
+-- **any** repo.
+minimumCheckInterval :: NominalDiffTime
+minimumCheckInterval = 10
+
+-- | We'll wake up this often to see if we should do something, even if we had
+-- nothing to do last time.
+maximumCheckInterval :: NominalDiffTime
+maximumCheckInterval = 10 * 60
+
+-- | We'll check once per day for each repo.
+repoCheckInterval :: NominalDiffTime
+repoCheckInterval = 86400
+
+checkTagsThread :: WorkerT ()
+checkTagsThread =
+    forever $ do
+        numberChecked <-
+            runWorkerDB $ do
+                now <- liftIO getCurrentTime
+                let checkIfOlderThan = (-repoCheckInterval) `addUTCTime` now
+                needsChecking <-
+                    select $
+                    from $ \(r `LeftOuterJoin` tc) -> do
+                        on $ just (r ^. RepoId) ==. tc ?. TagCheckRepo
+                        where_ $
+                            isNothing (tc ?. TagCheckRan) ||.
+                            (tc ?. TagCheckRan <=. just (val checkIfOlderThan))
+                        limit 1
+                        pure r
+                traverse_ checkRepoTags needsChecking
+                pure $ length needsChecking
+        if numberChecked == 0
+            then waitInterval maximumCheckInterval
+            else waitInterval minimumCheckInterval
 
 reparseMissingPackages :: WorkerT ()
 reparseMissingPackages =
@@ -182,9 +261,6 @@ reparseMissingPackages =
 reparseAllPackages :: WorkerT ()
 reparseAllPackages =
     void $ runWorkerDB $ allPackageChecks >>= traverse decodePackageJSON
-
-checkTags :: WorkerT ()
-checkTags = void $ runWorkerDB $ neverCheckedForTags >>= traverse checkRepoTags
 
 allPackageChecks :: WorkerDB [Entity PackageCheck]
 allPackageChecks = select $ from pure
@@ -202,17 +278,9 @@ decodedPackageIsNull =
         where_ $ isNothing (package ?. PackageRepoVersion)
         pure packageCheck
 
-neverCheckedForTags :: WorkerDB [Entity Repo]
-neverCheckedForTags =
-    select $
-    from $ \repo -> do
-        where_ $
-            notExists $
-            from $ \check -> where_ (check ^. TagCheckRepo ==. repo ^. RepoId)
-        pure repo
-
 checkRepoTags :: Entity Repo -> WorkerDB ()
 checkRepoTags repo = do
+    $(logInfo) $ "Checking repo: " <> (repoGitUrl . entityVal) repo
     knownVersions <- fetchKnownVersions (entityKey repo)
     fetchedVersions <- fetchGitTags repo
     let newVersions = filter (`notElem` knownVersions) fetchedVersions
