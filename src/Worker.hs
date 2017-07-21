@@ -178,7 +178,11 @@ waitForChildren children =
 forkChild :: WorkerT () -> WorkerT (MVar ())
 forkChild todo = do
     mvar <- liftIO newEmptyMVar
-    void $ resourceForkWith (`forkFinally` (\_ -> putMVar mvar ())) todo
+    let handleResult r =
+            case r of
+                Left e -> throwIO e
+                Right _ -> putMVar mvar ()
+    void $ resourceForkWith (`forkFinally` handleResult) todo
     pure mvar
 
 crawl :: WorkerT ()
