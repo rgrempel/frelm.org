@@ -42,6 +42,8 @@ getLibrariesR = do
                 [asc $ l ^. LibraryName, desc $ rv ^. RepoVersionCommittedAt]
             pure (l, r, rv, p)
     wrapper <- newIdent
+    repoClass <- newIdent
+    packageClass <- newIdent
     defaultLayout $ do
         setTitle "Elm Libraries"
         [whamlet|
@@ -73,25 +75,25 @@ getLibrariesR = do
                     <div .col-lg-12>
                         <dl>
                             $forall byLibrary <- result
-                                $forall (Entity _ library, _, _, _) <- safeHead byLibrary
+                                $forall (Entity _ library, _, _, _) <- listToMaybe byLibrary
                                     <dt>#{libraryName library}
                                     <dd>
-                                        $forall (Entity _ library, Entity repoId repo, Entity repoVersionId rv, Entity packageId package) <- byLibrary
-                                            <div>
-                                                #{packageSummary package} /
-                                                <a href="@{RepoVersionR (repoVersionRepo rv) (repoVersionTag rv)}">#{(toText . repoVersionVersion) rv}
+                                        $forall (_, Entity repoId repo, Entity _ rv, Entity _ package) <- byLibrary
+                                            <div .#{repoClass}>
+                                                <div><a href="@{RepoR repoId}">#{repoGitUrl repo}
+                                                <div .#{packageClass}>
+                                                    <a href="@{RepoVersionR (repoVersionRepo rv) (repoVersionTag rv)}">
+                                                        <span .label.label-primary>#{(toText . repoVersionVersion) rv}
+                                                    #{packageSummary package}
         |]
         toWidget
             [cassius|
                 .#{wrapper}
                     dt
-                        margin-top: 0.5em
+                        margin-top: 0.6em
                     dd
-                        margin-left: 3em
-            |]
+                        margin-left: 2em
 
-safeHead :: [a] -> Maybe a
-safeHead a =
-    case a of
-        x:xs -> Just x
-        [] -> Nothing
+                    .#{repoClass}
+                        margin-bottom: 0.4em
+            |]
