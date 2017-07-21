@@ -34,9 +34,9 @@ import System.Directory (doesFileExist)
 import System.Exit (die)
 import System.FilePath ((</>))
 import System.IO.Temp (withSystemTempDirectory)
-import System.Process
-       (CreateProcess, env, proc, readCreateProcessWithExitCode,
-        readProcessWithExitCode)
+import System.Process (CreateProcess, env, proc)
+import System.Process.ByteString
+       (readCreateProcessWithExitCode, readProcessWithExitCode)
 import Text.Parsec as Parsec
 
 type WorkerT = ResourceT (ReaderT Worker (LoggingT IO))
@@ -350,18 +350,20 @@ fetchGitTags repo = do
     void $
         upsert
             TagCheck
-            { tagCheckStdout = pack out
-            , tagCheckStderr = pack err
+            { tagCheckStdout = decodeUtf8 out
+            , tagCheckStderr = decodeUtf8 err
             , tagCheckExitCode = exitCode
             , tagCheckRan = ran
             , tagCheckRepo = entityKey repo
             }
-            [ TagCheckStdout P.=. pack out
-            , TagCheckStderr P.=. pack err
+            [ TagCheckStdout P.=. decodeUtf8 out
+            , TagCheckStderr P.=. decodeUtf8 err
             , TagCheckExitCode P.=. exitCode
             , TagCheckRan P.=. ran
             ]
-    pure $ (rights . fmap (parse parseTag "line") . lines) out
+    pure $
+        (rights . fmap (parse parseTag "line") . lines)
+            ((unpack . decodeUtf8) out)
 
 data GitTag = GitTag
     { gitTagSha :: Text
@@ -506,7 +508,7 @@ tagCommittedAt ::
        MonadIO m
     => FilePath
     -> String
-    -> m (Either (ExitCode, String, String) UTCTime)
+    -> m (Either (ExitCode, Text, Text) UTCTime)
 tagCommittedAt gitDir sha = do
     (exitCode, out, err) <-
         liftIO $
@@ -517,11 +519,15 @@ tagCommittedAt gitDir sha = do
     pure $
         case exitCode of
             ExitSuccess ->
-                first (\err2 -> (ExitFailure 1, (lastString . lines) out, err2)) $
+                first
+                    (\err2 ->
+                         ( ExitFailure 1
+                         , (pack . lastString . lines . unpack . decodeUtf8) out
+                         , pack err2)) $
                 parseTimeM False defaultTimeLocale rfc822DateFormat .
-                lastString . lines $
+                lastString . lines . unpack . decodeUtf8 $
                 out
-            ExitFailure _ -> Left (exitCode, out, err)
+            ExitFailure _ -> Left (exitCode, decodeUtf8 out, decodeUtf8 err)
 
 lastString :: [String] -> String
 lastString = go ""
@@ -532,10 +538,7 @@ lastString = go ""
             [] -> acc
 
 checkoutGitRepo ::
-       MonadIO m
-    => FilePath
-    -> String
-    -> m (Either (ExitCode, String, String) ())
+       MonadIO m => FilePath -> String -> m (Either (ExitCode, Text, Text) ())
 checkoutGitRepo gitDir tag = do
     (exitCode, out, err) <-
         liftIO $
@@ -553,7 +556,7 @@ checkoutGitRepo gitDir tag = do
             ""
     if exitCode == ExitSuccess
         then pure $ Right ()
-        else pure $ Left (exitCode, out, err)
+        else pure $ Left (exitCode, decodeUtf8 out, decodeUtf8 err)
 
 cloneGitRepo :: Entity Repo -> FilePath -> WorkerDB (Maybe FilePath)
 cloneGitRepo repo toPath = do
@@ -577,8 +580,8 @@ cloneGitRepo repo toPath = do
             insert_
                 CloneError
                 { cloneErrorExitCode = exitCode
-                , cloneErrorStdout = pack out
-                , cloneErrorStderr = pack err
+                , cloneErrorStdout = decodeUtf8 out
+                , cloneErrorStderr = decodeUtf8 err
                 , cloneErrorRepo = entityKey repo
                 , cloneErrorRan = ran
                 }
