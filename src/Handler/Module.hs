@@ -7,6 +7,7 @@
 
 module Handler.Module where
 
+import Data.PersistSemVer
 import Data.SemVer (toText)
 import Database.Esqueleto
 import Import.App hiding (groupBy, on)
@@ -35,6 +36,7 @@ getModulesR = do
             orderBy [asc $ m ^. ModuleName, desc $ rv ^. RepoVersionCommittedAt]
             pure (m ^. ModuleId, m ^. ModuleName, l ^. LibraryName, rv)
     wrapper <- newIdent
+    packageClass <- newIdent
     defaultLayout $ do
         setTitle "Elm Modules"
         [whamlet|
@@ -52,13 +54,15 @@ getModulesR = do
                     <div .col-lg-12>
                         <dl>
                             $forall byModule <- result
-                                $forall (_, moduleName, _, _) <- safeHead byModule
+                                $forall (_, moduleName, _, _) <- listToMaybe byModule
                                     <dt>#{unValue moduleName}
                                     <dd>
                                         $forall (_, _, libraryName, Entity _ rv) <- byModule
-                                            <div>
-                                                #{unValue libraryName} /
-                                                <a href="@{RepoVersionR (repoVersionRepo rv) (repoVersionTag rv)}">#{(toText . repoVersionVersion) rv}
+                                            <div .#{packageClass}>
+                                                <a href="@{RepoVersionR (repoVersionRepo rv) (repoVersionTag rv)}">
+                                                    <span .label.#{labelForVersion $ repoVersionVersion rv}>
+                                                        #{(toText . repoVersionVersion) rv}
+                                                #{unValue libraryName}
         |]
         toWidget
             [cassius|
@@ -66,11 +70,8 @@ getModulesR = do
                     dt
                         margin-top: 0.5em
                     dd
-                        margin-left: 3em
-            |]
+                        margin-left: 2em
 
-safeHead :: [a] -> Maybe a
-safeHead a =
-    case a of
-        x:_ -> Just x
-        [] -> Nothing
+                .#{packageClass}
+                    margin-bottom: 0.2em
+            |]

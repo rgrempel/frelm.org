@@ -7,7 +7,8 @@
 
 module Handler.Recent where
 
-import Data.SemVer (toText)
+import Data.PersistSemVer
+import Data.SemVer
 import Data.Time.Calendar (showGregorian)
 import Database.Esqueleto
 import Import.App hiding (on)
@@ -47,16 +48,18 @@ getRecentR = do
                         follow the package link.
                 <div .row>
                     <div .col-lg-12>
-                            $forall byDay <- result
-                                $forall (Entity _ rv, Entity _ p, Entity _ l) <- safeHead byDay
-                                    <h4>#{(showGregorian (utctDay (repoVersionCommittedAt rv)))}
-                                    <dl>
-                                        $forall (Entity rvId rv2, Entity _ p, Entity _ l) <- byDay 
-                                            <dt>
-                                                #{libraryName l} -
-                                                <a href="@{RepoVersionR (repoVersionRepo rv) (repoVersionTag rv)}">#{(toText . repoVersionVersion) rv2}
-                                            <dd>
-                                                #{packageSummary p}
+                        $forall byDay <- result
+                            $forall (Entity _ rvHead, _, _) <- listToMaybe byDay
+                                <h4>#{showGregorian $ utctDay $ repoVersionCommittedAt rvHead}
+                                <dl>
+                                    $forall (Entity _ rv, Entity _ p, Entity _ l) <- byDay
+                                        <dt>
+                                            #{libraryName l}
+                                        <dd>
+                                            <a href="@{RepoVersionR (repoVersionRepo rv) (repoVersionTag rv)}">
+                                                <span .label.#{labelForVersion $ packageVersion p}>
+                                                    #{toText $ packageVersion p}
+                                            #{packageSummary p}
         |]
         toWidget
             [cassius|
@@ -64,11 +67,5 @@ getRecentR = do
                     dt
                         margin-top: 0.5em
                     dd
-                        margin-left: 3em
+                        margin-left: 2em
             |]
-
-safeHead :: [a] -> Maybe a
-safeHead a =
-    case a of
-        x:xs -> Just x
-        [] -> Nothing

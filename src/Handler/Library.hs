@@ -8,6 +8,7 @@
 
 module Handler.Library where
 
+import Data.PersistSemVer
 import Data.SemVer (toText)
 import Database.Esqueleto
 import Import.App hiding (on)
@@ -78,13 +79,16 @@ getLibrariesR = do
                                 $forall (Entity _ library, _, _, _) <- listToMaybe byLibrary
                                     <dt>#{libraryName library}
                                     <dd>
-                                        $forall (_, Entity repoId repo, Entity _ rv, Entity _ package) <- byLibrary
+                                        $forall (_, Entity _ repo, Entity _ rv, Entity _ package) <- byLibrary
                                             <div .#{repoClass}>
-                                                <div><a href="@{RepoR repoId}">#{repoGitUrl repo}
                                                 <div .#{packageClass}>
                                                     <a href="@{RepoVersionR (repoVersionRepo rv) (repoVersionTag rv)}">
-                                                        <span .label.label-primary>#{(toText . repoVersionVersion) rv}
+                                                        <span .label.#{labelForVersion $ repoVersionVersion rv}>
+                                                            #{(toText . repoVersionVersion) rv}
                                                     #{packageSummary package}
+                                                <div>
+                                                    <a href="@{RepoR $ repoVersionRepo rv}">
+                                                        #{repoGitUrl repo}
         |]
         toWidget
             [cassius|

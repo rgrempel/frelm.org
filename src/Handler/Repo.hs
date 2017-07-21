@@ -7,6 +7,7 @@
 
 module Handler.Repo where
 
+import Data.PersistSemVer
 import Data.SemVer (toText)
 import Database.Esqueleto
 import Import.App hiding (groupBy, on)
@@ -213,7 +214,8 @@ getReposR = do
                                     $forall v <- version
                                         $forall p <- package
                                             <a href="@{RepoVersionR (repoVersionRepo $ entityVal v) (repoVersionTag $ entityVal v)}">
-                                                <span .label.label-primary>#{toText $ repoVersionVersion $ entityVal v}
+                                                <span .label.#{labelForVersion $ repoVersionVersion $ entityVal v}>
+                                                    #{toText $ repoVersionVersion $ entityVal v}
                                             #{packageSummary $ entityVal p}
         |]
         toWidget
@@ -222,7 +224,7 @@ getReposR = do
                     dt
                         margin-top: 1em
                     dd
-                        margin-left: 0em
+                        margin-left: 2em
             |]
 
 postReposR :: Handler Html

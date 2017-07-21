@@ -9,9 +9,10 @@
 module Data.PersistSemVer where
 
 import ClassyPrelude hiding (many)
+import Control.Lens as L (view)
 import Data.Aeson
 import Data.Range
-import Data.SemVer (Version, fromText, toText)
+import Data.SemVer
 import Database.Persist (PersistValue(..))
 import Database.Persist.Sql
        (PersistField(..), PersistFieldSql(..), SqlType(..))
@@ -47,3 +48,11 @@ instance PersistField (Range Version) where
 
 instance PersistFieldSql (Range Version) where
     sqlType _ = SqlOther "SEMVER_RANGE"
+
+labelForVersion :: Version -> String
+labelForVersion v
+    | isDevelopment v = "label-default"
+    | (not . null . view release) v = "label-default"
+    | (not . (==) 0 . view patch) v = "label-info"
+    | (not . (==) 0 . view minor) v = "label-primary"
+    | otherwise = "label-success"
