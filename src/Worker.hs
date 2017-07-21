@@ -180,7 +180,9 @@ forkChild todo = do
     mvar <- liftIO newEmptyMVar
     let handleResult r =
             case r of
-                Left e -> throwIO e
+                Left e -> do
+                    print e
+                    throwIO e
                 Right _ -> putMVar mvar ()
     void $ resourceForkWith (`forkFinally` handleResult) todo
     pure mvar
