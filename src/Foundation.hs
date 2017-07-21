@@ -133,12 +133,6 @@ instance Yesod App where
         let menuItems =
                 [ NavbarLeft
                       MenuItem
-                      { menuItemLabel = "Home"
-                      , menuItemRoute = HomeR
-                      , menuItemAccessCallback = True
-                      }
-                , NavbarLeft
-                      MenuItem
                       { menuItemLabel = "Repositories"
                       , menuItemRoute = ReposR
                       , menuItemAccessCallback = True
@@ -324,7 +318,6 @@ instance YesodAuth App where
                 setTitleI LoginTitle
                 master <- getYesod
                 pluginClass <- newIdent
-                pluginNameBase <- newIdent
                 [whamlet|
                     <div .container>
                         <div .row>
