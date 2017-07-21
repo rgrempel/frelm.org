@@ -30,7 +30,7 @@ getRepoR repoId = do
                             We look for tags that are formatted as a Semantic Version ...
                             for instance, 1.0.0. We check for new tags about once a day.
                         <table .table .table-striped .table-responsive>
-                            $forall Entity versionId version <- versions
+                            $forall Entity _ version <- versions
                                 <tr>
                                     <td>
                                         <a href=@{RepoVersionR (repoVersionRepo version) (repoVersionTag version)}>#{repoVersionTag version}
@@ -100,7 +100,7 @@ viewPackageCheck pc p =
                             <code>elm-package.json
                             file at this tag.
 
-                    $of Just package
+                    $of Just _
                         $case p
                             $of Just decoded
                                 ^{viewDecodedPackage decoded}
@@ -207,10 +207,14 @@ getReposR = do
                         <dl>
                             $forall (repo, version, package) <- repos
                                 <dt>
-                                    <a href=@{RepoR (entityKey repo)}>#{(repoGitUrl . entityVal) repo}
+                                    <a href=@{RepoR (entityKey repo)}>
+                                        #{(repoGitUrl . entityVal) repo}
                                 <dd>
-                                    $forall p <- package
-                                        #{(packageSummary . entityVal) p}
+                                    $forall v <- version
+                                        $forall p <- package
+                                            <a href="@{RepoVersionR (repoVersionRepo $ entityVal v) (repoVersionTag $ entityVal v)}">
+                                                <span .label.label-primary>#{toText $ repoVersionVersion $ entityVal v}
+                                            #{packageSummary $ entityVal p}
         |]
         toWidget
             [cassius|
@@ -218,7 +222,7 @@ getReposR = do
                     dt
                         margin-top: 1em
                     dd
-                        margin-left: 3em
+                        margin-left: 0em
             |]
 
 postReposR :: Handler Html
