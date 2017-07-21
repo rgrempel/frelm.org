@@ -13,6 +13,7 @@ import Control.Monad.Logger
 import Control.Monad.Trans.Resource
        (ResourceT, resourceForkWith, runResourceT)
 import Data.Aeson (eitherDecodeStrict)
+import Data.ByteString (readFile)
 import Data.ElmPackage
 import Data.List (nub)
 import Data.Map (traverseWithKey)
@@ -27,7 +28,7 @@ import qualified Database.Persist as P
 import Database.Persist.Postgresql
        (createPostgresqlPool, pgConnStr, pgPoolSize)
 import GHC.IO.Exception (ExitCode(..))
-import Import.Worker hiding ((<>), isNothing, on)
+import Import.Worker hiding ((<>), isNothing, on, readFile)
 import LoadEnv (loadEnv, loadEnvFrom)
 import Options.Applicative as OA
 import System.Directory (doesFileExist)
@@ -417,7 +418,7 @@ checkNewTag repoId gitDir gitTag = do
                                liftIO $ doesFileExist elmPackageJson
                            if hasElmPackage
                                then do
-                                   contents <- liftIO $ readFile elmPackageJson
+                                   contents <- liftIO $ decodeUtf8 <$> readFile elmPackageJson
                                    upsert
                                        PackageCheck
                                        { packageCheckPackage = Just contents
