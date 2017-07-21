@@ -512,7 +512,8 @@ tagCommittedAt gitDir sha = do
         case exitCode of
             ExitSuccess ->
                 first (\err2 -> (ExitFailure 1, (lastString . lines) out, err2)) $
-                parseTimeM False defaultTimeLocale rfc822DateFormat . lastString . lines $
+                parseTimeM False defaultTimeLocale rfc822DateFormat .
+                lastString . lines $
                 out
             ExitFailure _ -> Left (exitCode, out, err)
 
@@ -534,7 +535,15 @@ checkoutGitRepo gitDir tag = do
         liftIO $
         readProcessWithExitCode
             "git"
-            ["--git-dir", gitDir </> ".git", "--work-tree", gitDir, "checkout", "--quiet", "--detach", tag]
+            [ "--git-dir"
+            , gitDir </> ".git"
+            , "--work-tree"
+            , gitDir
+            , "checkout"
+            , "--quiet"
+            , "--detach"
+            , tag
+            ]
             ""
     if exitCode == ExitSuccess
         then pure $ Right ()
