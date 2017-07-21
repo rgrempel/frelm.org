@@ -19,7 +19,7 @@ import Data.Map (traverseWithKey)
 import Data.OfficialPackage
 import Data.SemVer (Version, fromText)
 import Data.Time.Clock
-import Data.Time.ISO8601
+import Data.Time.Format
 import Data.Yaml.Config (loadYamlSettings, useEnv)
 import Database.Esqueleto
 import Database.Migrate
@@ -506,18 +506,14 @@ tagCommittedAt gitDir sha = do
         liftIO $
         readProcessWithExitCode
             "git"
-            ["-C", gitDir, "show", "-s", "--format=%cI", sha]
+            ["--git-dir", gitDir </> ".git", "show", "-s", "--format=%cD", sha]
             ""
     pure $
         case exitCode of
             ExitSuccess ->
-                case (parseISO8601 . lastString . lines) out of
-                    Just utcTime -> Right utcTime
-                    Nothing ->
-                        Left
-                            ( ExitFailure 1
-                            , (lastString . lines) out
-                            , "parseISO8601 failed")
+                first (\err2 -> (ExitFailure 1, (lastString . lines) out, err2)) $
+                parseTimeM False defaultTimeLocale rfc822DateFormat . lastString . lines $
+                out
             ExitFailure _ -> Left (exitCode, out, err)
 
 lastString :: [String] -> String
@@ -538,7 +534,7 @@ checkoutGitRepo gitDir tag = do
         liftIO $
         readProcessWithExitCode
             "git"
-            ["-C", gitDir, "checkout", "--quiet", "--detach", tag]
+            ["--git-dir", gitDir </> ".git", "--work-tree", gitDir, "checkout", "--quiet", "--detach", tag]
             ""
     if exitCode == ExitSuccess
         then pure $ Right ()
@@ -550,15 +546,13 @@ cloneGitRepo repo toPath = do
         liftIO $
         readProcessWithExitCode
             "git"
-            [ "-C"
-            , toPath
-            , "clone"
+            [ "clone"
             , "--depth"
             , "1"
             , "--quiet"
             , "--no-single-branch"
             , unpack $ (repoGitUrl . entityVal) repo
-            , "git-clone"
+            , toPath </> "git-clone"
             ]
             ""
     if exitCode == ExitSuccess
