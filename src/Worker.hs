@@ -515,7 +515,7 @@ tagCommittedAt gitDir sha = do
         liftIO $
         readProcessWithExitCode
             "git"
-            ["--git-dir", gitDir </> ".git", "show", "-s", "--format=%cD", sha]
+            ["--git-dir", gitDir </> ".git", "show", "-s", "--format=%n%cD", sha]
             ""
     pure $
         case exitCode of
