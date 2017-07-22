@@ -14,11 +14,12 @@ import Control.Monad.Trans.Resource
        (ResourceT, resourceForkWith, runResourceT)
 import Data.Aeson (eitherDecodeStrict)
 import Data.ByteString (readFile)
+import qualified Data.ByteString.Char8 as BS8
 import Data.ElmPackage
 import Data.List (nub)
 import Data.Map (traverseWithKey)
 import Data.OfficialPackage
-import Data.SemVer (Version, fromText)
+import Data.SemVer (Version, fromText, toText)
 import Data.Time.Clock
 import Data.Time.Format
 import Data.Yaml.Config (loadYamlSettings, useEnv)
@@ -32,6 +33,7 @@ import Import.Worker hiding ((<>), isNothing, on, readFile)
 import LoadEnv (loadEnv, loadEnvFrom)
 import Options.Applicative as OA
 import System.Directory (doesFileExist)
+import System.Environment (getEnv)
 import System.Exit (die)
 import System.FilePath ((</>))
 import System.IO.Temp (withSystemTempDirectory)
@@ -39,6 +41,13 @@ import System.Process (CreateProcess, env, proc)
 import System.Process.ByteString
        (readCreateProcessWithExitCode, readProcessWithExitCode)
 import Text.Parsec as Parsec
+import Web.Twitter.Conduit
+       (Credential(..), TWInfo, def, oauthConsumerKey,
+        oauthConsumerSecret, twCredential, twOAuth, twProxy, twToken,
+        twitterOAuth)
+import qualified Web.Twitter.Conduit as TW
+       (Manager, call, newManager, tlsManagerSettings, update)
+import qualified Web.Twitter.Types as TW (Status)
 
 type WorkerT = ResourceT (ReaderT Worker (LoggingT IO))
 
@@ -49,17 +58,21 @@ data Worker = Worker
     { workerSettings :: WorkerSettings
     , workerConnPool :: ConnectionPool
     , workerArgs :: Args
+    , workerTwitterInfo :: TWInfo
+    , workerHttpManager :: TW.Manager
     }
 
 data Command
     = AddRepo String
     | Crawl
+    | CheckRepo Int64
     | RecheckRepo Int64
     | RecheckTags
     | ReparseMissingPackages
     | ReparseAllPackages
     | RunMigrations
     | Scrape
+    | Tweet String
     deriving (Show)
 
 data Args = Args
@@ -85,13 +98,19 @@ parseArgs = info (mainParser <**> helper) description
         command "crawl" crawlParser <>
         command "recheck-tags" recheckTagsParser <>
         command "recheck-repo" recheckRepoParser <>
+        command "check-repo" checkRepoParser <>
         command "reparse-missing" reparseMissingParser <>
         command "reparse-all" reparseAllParser <>
-        command "scrape" scrapeParser
+        command "scrape" scrapeParser <>
+        command "tweet" tweetParser
     addRepoParser =
         info
             (fmap AddRepo $ argument str $ metavar "REPOSITORY")
             (fullDesc <> progDesc "Add a new repository to the database.")
+    tweetParser =
+        info
+            (fmap Tweet $ argument str $ metavar "TEXT")
+            (fullDesc <> progDesc "Tweet something.")
     migrateParser =
         info
             (pure RunMigrations)
@@ -104,6 +123,11 @@ parseArgs = info (mainParser <**> helper) description
             (fmap RecheckRepo $
              argument auto $ metavar "REPO_ID" <> help "repoId to recheck")
             (fullDesc <> progDesc "Recheck a repo")
+    checkRepoParser =
+        info
+            (fmap CheckRepo $
+             argument auto $ metavar "REPO_ID" <> help "repoId to check")
+            (fullDesc <> progDesc "Check a repo")
     reparseMissingParser =
         info
             (pure ReparseMissingPackages)
@@ -123,6 +147,7 @@ runWorker = do
             runWorkerDB $
             insert_ Repo {repoGitUrl = pack repo, repoSubmittedBy = Nothing}
         RecheckRepo repoId -> recheckRepo (toSqlKey repoId)
+        CheckRepo repoId -> checkRepo (toSqlKey repoId)
         RecheckTags -> recheckTags
         RunMigrations -> do
             dbconf <- asks (workerDatabaseConf . workerSettings)
@@ -134,14 +159,39 @@ runWorker = do
         ReparseMissingPackages -> reparseMissingPackages
         ReparseAllPackages -> reparseAllPackages
         Scrape -> scrape
+        Tweet content -> void $ tweet $ pack content
 
 -- | The main function for the worker.
 workerMain :: IO ()
 workerMain = do
     loadEnv
     loadEnvFrom "./.env-worker"
+    -- Settings & Args
     workerSettings <- loadYamlSettings [] [configSettingsYmlValue] useEnv
     workerArgs <- execParser parseArgs
+    -- Twitter
+    twitterConsumerKey <- getEnv "TWITTER_CONSUMER_KEY"
+    twitterConsumerSecret <- getEnv "TWITTER_CONSUMER_SECRET"
+    twitterAccessToken <- getEnv "TWITTER_ACCESS_TOKEN"
+    twitterAccessTokenSecret <- getEnv "TWITTER_ACCESS_TOKEN_SECRET"
+    let twitterConsumer =
+            twitterOAuth
+            { oauthConsumerKey = BS8.pack twitterConsumerKey
+            , oauthConsumerSecret = BS8.pack twitterConsumerSecret
+            }
+    let twitterCredential =
+            Credential
+                [ ("oauth_token", BS8.pack twitterAccessToken)
+                , ("oauth_token_secret", BS8.pack twitterAccessTokenSecret)
+                ]
+    let workerTwitterInfo =
+            def
+            { twToken =
+                  def
+                  {twOAuth = twitterConsumer, twCredential = twitterCredential}
+            , twProxy = Nothing
+            }
+    workerHttpManager <- TW.newManager TW.tlsManagerSettings
     -- We short-circuit the validation if we're running the migrations
     schemaValidation <-
         case argsCommand workerArgs of
@@ -187,6 +237,12 @@ forkChild todo = do
                 Right _ -> putMVar mvar ()
     void $ resourceForkWith (`forkFinally` handleResult) todo
     pure mvar
+
+tweet :: Text -> WorkerT TW.Status
+tweet content = do
+    twInfo <- asks workerTwitterInfo
+    mgr <- asks workerHttpManager
+    liftIO $ TW.call twInfo mgr $ TW.update content
 
 crawl :: WorkerT ()
 crawl = do
@@ -263,11 +319,14 @@ checkTagsThread =
 
 reparseMissingPackages :: WorkerT ()
 reparseMissingPackages =
-    void $ runWorkerDB $ decodedPackageIsNull >>= traverse decodePackageJSON
+    void $
+    runWorkerDB $
+    decodedPackageIsNull >>= traverse (decodePackageJSON TagRechecked)
 
 reparseAllPackages :: WorkerT ()
 reparseAllPackages =
-    void $ runWorkerDB $ allPackageChecks >>= traverse decodePackageJSON
+    void $
+    runWorkerDB $ allPackageChecks >>= traverse (decodePackageJSON TagRechecked)
 
 allPackageChecks :: WorkerDB [Entity PackageCheck]
 allPackageChecks = select $ from pure
@@ -285,6 +344,11 @@ decodedPackageIsNull =
         where_ $ isNothing (package ?. PackageRepoVersion)
         pure packageCheck
 
+data TagCheckReason
+    = TagFirstSeen
+    | TagRechecked
+    deriving (Eq)
+
 checkRepoTags :: Entity Repo -> WorkerDB ()
 checkRepoTags repo = do
     $(logInfo) $ "Checking repo: " <> (repoGitUrl . entityVal) repo
@@ -295,8 +359,12 @@ checkRepoTags repo = do
         withSystemTempDirectory "git-clone" $ \basedir -> do
             gitdir <- cloneGitRepo repo basedir
             forM_ gitdir $ \dir ->
-                forM_ newVersions $ checkNewTag (entityKey repo) dir
+                forM_ newVersions $
+                checkNewTag TagFirstSeen (entityKey repo) dir
     transactionSave
+
+checkRepo :: RepoId -> WorkerT ()
+checkRepo repoId = runWorkerDB $ getJustEntity repoId >>= checkRepoTags
 
 recheckRepo :: RepoId -> WorkerT ()
 recheckRepo repoId =
@@ -307,7 +375,8 @@ recheckRepo repoId =
             withSystemTempDirectory "git-clone" $ \basedir -> do
                 gitdir <- cloneGitRepo repo basedir
                 forM_ gitdir $ \dir ->
-                    forM_ fetchedVersions $ checkNewTag (entityKey repo) dir
+                    forM_ fetchedVersions $
+                    checkNewTag TagRechecked (entityKey repo) dir
 
 recheckTags :: WorkerT ()
 recheckTags =
@@ -319,7 +388,8 @@ recheckTags =
                 withSystemTempDirectory "git-clone" $ \basedir -> do
                     gitdir <- cloneGitRepo repo basedir
                     forM_ gitdir $ \dir ->
-                        forM_ fetchedVersions $ checkNewTag (entityKey repo) dir
+                        forM_ fetchedVersions $
+                        checkNewTag TagRechecked (entityKey repo) dir
             transactionSave
 
 fetchKnownVersions :: RepoId -> WorkerDB [GitTag]
@@ -389,8 +459,8 @@ parseTag = do
         Right gitTagVersion -> pure GitTag {..}
         Left err -> unexpected err
 
-checkNewTag :: Key Repo -> FilePath -> GitTag -> WorkerDB ()
-checkNewTag repoId gitDir gitTag = do
+checkNewTag :: TagCheckReason -> Key Repo -> FilePath -> GitTag -> WorkerDB ()
+checkNewTag reason repoId gitDir gitTag = do
     result <- checkoutGitRepo gitDir (unpack $ gitTagTag gitTag)
     case result of
         Left err -> void $ $(logError) (tshow err)
@@ -441,10 +511,10 @@ checkNewTag repoId gitDir gitTag = do
                                         [ PackageCheckPackage P.=. Nothing
                                         , PackageCheckDecodeError P.=. Nothing
                                         ]
-                    decodePackageJSON pc
+                    decodePackageJSON reason pc
 
-decodePackageJSON :: Entity PackageCheck -> WorkerDB ()
-decodePackageJSON pc =
+decodePackageJSON :: TagCheckReason -> Entity PackageCheck -> WorkerDB ()
+decodePackageJSON reason pc =
     forM_ ((packageCheckPackage . entityVal) pc) $ \contents ->
         case eitherDecodeStrict (encodeUtf8 contents) of
             Left err ->
@@ -506,6 +576,29 @@ decodePackageJSON pc =
                                 , repoSubmittedBy = Nothing
                                 }
                         void $ insertUnique Dependency {..}
+                when (reason == TagFirstSeen) $
+                    forM_ (elmPackageLibraryName p) $ \libraryName -> do
+                        let tweetText =
+                                libraryName <> " " <>
+                                (toText . elmPackageVersion) p <>
+                                ": " <>
+                                elmPackageSummary p
+                        void $ lift $ tweet $ toEllipsis 140 tweetText
+
+toEllipsis :: Int -> Text -> Text
+toEllipsis maxLen t =
+    if length t <= maxLen
+        then t
+        else go "" (words t)
+  where
+    go accum list =
+        case list of
+            [] -> accum <> " …"
+            x:xs ->
+                let candidate = accum <> " " <> x
+                in if length candidate + 2 > maxLen
+                       then accum <> " …"
+                       else go candidate xs
 
 tagCommittedAt ::
        MonadIO m

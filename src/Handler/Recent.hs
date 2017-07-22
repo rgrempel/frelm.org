@@ -46,6 +46,11 @@ getRecentR = do
                         repository where we actually found the package. If you
                         want to know the actual location of the repository,
                         follow the package link.
+                    <p>
+                        We also have a
+                        <a href="https://twitter.com/frelmorg">frelmorg
+                        twitter page, where we tweet when we see a new version
+                        of a package.
                 <div .row>
                     <div .col-lg-12>
                         $forall byDay <- result
