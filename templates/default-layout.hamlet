@@ -1,7 +1,7 @@
+<!-- Navbar -->
 
-<!-- Static navbar -->
-<nav .navbar.navbar-default.navbar-static-top>
-    <div .container-fluid>
+<nav .frelm.navbar.navbar-default.navbar-static-top>
+    <div .container>
         <div .navbar-header>
             <button type="button" .navbar-toggle.collapsed data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
                 <span class="sr-only">Toggle navigation</span>
@@ -21,6 +21,15 @@
                     <li :Just route == mcurrentRoute:.active>
                         <a href="@{route}">#{label}
 
+<!-- Apology -->
+
+<div .container>
+    <div .apology.alert.alert-warning.small>
+        This is an alternative site for discovering Elm packages.
+        You may be looking for the
+        <a href="http://package.elm-lang.org">official Elm package site
+        instead.
+
 <!-- Page Contents -->
 
 <div .container>
@@ -34,5 +43,7 @@
 
     $maybe msg <- mmsg
       <div .alert.alert-info #message>#{msg}
+
+<!-- Widget -->
 
 ^{widget}
