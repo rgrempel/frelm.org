@@ -418,7 +418,9 @@ checkNewTag repoId gitDir gitTag = do
                                liftIO $ doesFileExist elmPackageJson
                            if hasElmPackage
                                then do
-                                   contents <- liftIO $ decodeUtf8 <$> readFile elmPackageJson
+                                   contents <-
+                                       liftIO $
+                                       decodeUtf8 <$> readFile elmPackageJson
                                    upsert
                                        PackageCheck
                                        { packageCheckPackage = Just contents
@@ -515,7 +517,13 @@ tagCommittedAt gitDir sha = do
         liftIO $
         readProcessWithExitCode
             "git"
-            ["--git-dir", gitDir </> ".git", "show", "-s", "--format=%n%cD", sha]
+            [ "--git-dir"
+            , gitDir </> ".git"
+            , "show"
+            , "-s"
+            , "--format=%n%cD"
+            , sha
+            ]
             ""
     pure $
         case exitCode of
