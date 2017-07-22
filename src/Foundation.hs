@@ -14,15 +14,10 @@ import Database.Persist.Sql
 import Import.NoFoundation
 import Text.Hamlet (hamletFile)
 import Text.Jasmine (minifym)
-
--- Used only when in "auth-dummy-login" setting is enabled.
 import Yesod.Auth.Dummy
 import Yesod.Auth.Message (AuthMessage(LoginTitle))
 import Yesod.Auth.OAuth2.Github
 import Yesod.Auth.OAuth2.Gitlab
-
-import qualified Data.CaseInsensitive as CI
-import qualified Data.Text.Encoding as TE
 import Yesod.Core.Types (Logger)
 import qualified Yesod.Core.Unsafe as Unsafe
 import Yesod.Default.Util (addStaticContentExternal)
