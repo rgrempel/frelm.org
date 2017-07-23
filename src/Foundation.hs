@@ -259,7 +259,7 @@ instance YesodBreadcrumbs App where
     breadcrumb (RepoR repoId) =
         runDB $ do
             repoUrl <- maybe "Unknown repository" repoGitUrl <$> get repoId
-            pure (repoUrl, Just ReposR)
+            pure (repoUrl, Nothing)
 
 -- How to run database actions.
 instance YesodPersist App where
