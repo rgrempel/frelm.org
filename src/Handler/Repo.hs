@@ -68,8 +68,8 @@ getRepoVersionR repoId tag = do
         [whamlet|
             <div .container>
                 <div .row>
-                    ^{viewRepoVersion v}
                     ^{viewPackageCheck pc p}
+                    ^{viewRepoVersion v}
         |]
 
 viewRepoVersion :: Entity RepoVersion -> Widget
@@ -111,6 +111,8 @@ viewPackageCheck pc p =
                                         <code>elm-package.json
                                         file at this tag.
                                 $of Just contents
+                                    $forall (Entity _ decoded) <- p
+                                        <div>#{packageSummary decoded}
                                     $forall err <- packageCheckDecodeError packageCheck
                                         <div .alert.alert-danger>
                                             <p>
@@ -133,9 +135,6 @@ viewDecodedPackage (Entity _ p) =
             <tr>
                 <td .text-right>Version
                 <td>#{(toText . packageVersion) p}
-            <tr>
-                <td .text-right>Summary
-                <td>#{packageSummary p}
     |]
 
 data SubmissionForm = SubmissionForm
