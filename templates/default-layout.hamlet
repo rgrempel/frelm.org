@@ -47,3 +47,11 @@
 <!-- Widget -->
 
 ^{widget}
+
+<!-- Footer -->
+<footer .footer>
+    <div .container>
+        <p .text-muted>
+            This site powered by <a href="http://www.yesodweb.com">Yesod</a>.
+            Source code and bug reports at
+            <a href="https://github.com/rgrempel/frelm.org">Github</a>.
