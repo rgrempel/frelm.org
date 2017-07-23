@@ -7,8 +7,14 @@
 module Data.Range where
 
 import ClassyPrelude hiding ((<|>))
+import Database.Esqueleto (Value)
+import Database.Esqueleto.Internal.Sql
 import Database.Persist (PersistValue(..))
 import Text.Parsec
+
+valueInRange ::
+       SqlExpr (Value a) -> SqlExpr (Value (Range a)) -> SqlExpr (Value Bool)
+valueInRange = unsafeSqlBinOp " <@ "
 
 data Bound a
     = Inclusive a

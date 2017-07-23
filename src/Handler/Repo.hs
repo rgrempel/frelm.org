@@ -80,10 +80,28 @@ getRepoVersionR repoId tag = do
                     pure (pm, m)
             dependencies <-
                 select $
-                from $ \(d `InnerJoin` l) -> do
+                from $ \(d `InnerJoin` l `LeftOuterJoin` depRepo `LeftOuterJoin` depVersion) -> do
+                    on $
+                        (depVersion ?. RepoVersionRepo ==. depRepo ?. RepoId) &&.
+                        (depVersion ?. RepoVersionVersion ==.
+                         sub_select
+                             (from $ \depVersion2 -> do
+                                  where_ $
+                                      (just (depVersion2 ^. RepoVersionRepo) ==.
+                                       (depRepo ?. RepoId)) &&.
+                                      valueInRange
+                                          (depVersion2 ^. RepoVersionVersion)
+                                          (d ^. DependencyVersion)
+                                  pure $
+                                      max_ $ depVersion2 ^. RepoVersionVersion))
+                    on $
+                        just
+                            (val "https://github.com/" ++. (l ^. LibraryName) ++.
+                             val ".git") ==.
+                        (depRepo ?. RepoGitUrl)
                     on $ d ^. DependencyLibrary ==. l ^. LibraryId
                     where_ $ d ^. DependencyRepoVersion ==. val (entityKey v)
-                    pure (d, l)
+                    pure (d, l, depRepo, depVersion)
             pure (v, pc, p, modules, dependencies)
     defaultLayout
         [whamlet|
@@ -95,7 +113,12 @@ getRepoVersionR repoId tag = do
                     ^{viewDependencies dependencies}
         |]
 
-viewDependencies :: [(Entity Dependency, Entity Library)] -> Widget
+viewDependencies ::
+       [( Entity Dependency
+        , Entity Library
+        , Maybe (Entity Repo)
+        , Maybe (Entity RepoVersion))]
+    -> Widget
 viewDependencies deps =
     [whamlet|
         <div .col-lg-6 .col-md-6 .col-sm-6 .col-xs-12>
@@ -103,10 +126,15 @@ viewDependencies deps =
                 <div .panel-heading>
                     <h3 .panel-title>Dependencies
                 <table .table .table-striped>
-                    $forall (Entity _ d, Entity _ library) <- deps
+                    $forall (Entity _ d, Entity _ library, _, depRepoVersion) <- deps
                         <tr>
                             <td .text-right>#{libraryName library}
                             <td>#{showElmPackageRange toText $ dependencyVersion d}
+                            <td>
+                                $forall Entity _ drv <- depRepoVersion
+                                    <a href="@{RepoVersionR (repoVersionRepo drv) (repoVersionTag drv)}">
+                                        <span .label.#{labelForVersion $ repoVersionVersion drv}>
+                                            #{toText $ repoVersionVersion drv}
     |]
 
 viewModules :: [(Entity PackageModule, Entity Module)] -> Widget
