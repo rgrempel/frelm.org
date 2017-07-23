@@ -25,17 +25,23 @@ getRepoR repoId = do
         [whamlet|
             <div .container>
                 <div .row>
-                    <div .col-lg-12>
-                        <p>
-                            Here's a list of the tags we know about in this repo.
-                            We look for tags that are formatted as a Semantic Version ...
-                            for instance, 1.0.0. We check for new tags about once a day.
-                        <table .table .table-striped .table-responsive>
-                            $forall Entity _ version <- versions
-                                <tr>
-                                    <td>
-                                        <a href=@{RepoVersionR (repoVersionRepo version) (repoVersionTag version)}>#{repoVersionTag version}
-                                    <td>#{tshow $ repoVersionCommittedAt version}
+                    <div .col-lg-4 .col-md-4 .col-sm-6 .col-xs-12>
+                        <div .panel.panel-default>
+                            <div .panel-heading>
+                                <h3 .panel-title>Tags
+                            <div .panel-body>
+                                We look for tags that are formatted as a Semantic Version ...
+                                for instance, 1.0.0. We check for new tags about once a day.
+                            <table .table .table-striped .table-responsive>
+                                $forall Entity _ version <- versions
+                                    <tr>
+                                        <td align="right">
+                                            <a href=@{RepoVersionR (repoVersionRepo version) (repoVersionTag version)}>
+                                                <span .label.#{labelForVersion $ repoVersionVersion version}>
+                                                    #{toText $ repoVersionVersion version}
+                                        <td>
+                                            <a href=@{RepoVersionR (repoVersionRepo version) (repoVersionTag version)}>
+                                                #{tshow $ utctDay $ repoVersionCommittedAt version}
         |]
 
 handle404 :: MonadHandler m => m [a] -> m a
