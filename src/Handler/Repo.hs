@@ -68,67 +68,62 @@ getRepoVersionR repoId tag = do
         [whamlet|
             <div .container>
                 <div .row>
-                    <div .col-lg-12>
-                        ^{viewRepoVersion v}
-                        ^{viewPackageCheck pc p}
+                    ^{viewRepoVersion v}
+                    ^{viewPackageCheck pc p}
         |]
 
 viewRepoVersion :: Entity RepoVersion -> Widget
 viewRepoVersion (Entity _ v) =
     [whamlet|
-        <table .table .table-striped .table-responsive>
-            <tr>
-                <td>Tag
-                <td>#{repoVersionTag v}
-            <tr>
-                <td>SHA
-                <td>#{repoVersionSha v}
-            <tr>
-                <td>Commmitted At
-                <td>#{(tshow . repoVersionCommittedAt) v}
+        <div .col-lg-6 .col-md-6 .col-sm-6 .col-xs-12>
+            <div .panel.panel-default>
+                <div .panel-heading>
+                    <h3 .panel-title>Commit
+                <table .table .table-striped>
+                    <tr>
+                        <td .text-right>Tag
+                        <td>#{repoVersionTag v}
+                    <tr>
+                        <td .text-right>Commmitted At
+                        <td>#{(tshow . repoVersionCommittedAt) v}
     |]
 
 viewPackageCheck ::
        Maybe (Entity PackageCheck) -> Maybe (Entity Package) -> Widget
 viewPackageCheck pc p =
     [whamlet|
-        $case pc
-            $of Nothing
-                <div .alert.alert-danger>
-                    We have not yet checked for the
-                    <code>elm-package.json
-                    file.
-
-            $of Just (Entity _ packageCheck)
-                $case packageCheckPackage packageCheck
-                    $of Nothing
-                        <div .alert.alert-danger>
-                            We were not able to find the expected
-                            <code>elm-package.json
-                            file at this tag.
-
-                    $of Just _
-                        $case p
-                            $of Just decoded
-                                ^{viewDecodedPackage decoded}
-
-                            $of Nothing
-                                <div .alert.alert-danger>
-                                    <p>
-                                        We encountered the following errors
-                                        when trying to decode the
+        <div .col-lg-6 .col-md-6 .col-sm-6 .col-xs-12>
+            <div .panel.panel-default>
+                <div .panel-heading>
+                    <h3 .panel-title>Package
+                <div .panel-body>
+                    $case pc
+                        $of Nothing
+                            <div .alert.alert-danger>
+                                We have not yet checked for the
+                                <code>elm-package.json
+                                file.
+                        $of Just (Entity _ packageCheck)
+                            $case packageCheckPackage packageCheck
+                                $of Nothing
+                                    <div .alert.alert-danger>
+                                        We were not able to find the expected
                                         <code>elm-package.json
-                                        file.
-
+                                        file at this tag.
+                                $of Just contents
                                     $forall err <- packageCheckDecodeError packageCheck
-                                        <p>
+                                        <div .alert.alert-danger>
+                                            <p>
+                                                We encountered the following errors
+                                                when trying to decode the
+                                                <code>elm-package.json
+                                                file.
                                             <pre>
                                                 #{err}
-
-                                    $forall contents <- packageCheckPackage packageCheck
-                                        <p>
-                                            <pre>
+                                                --
                                                 #{contents}
+                $forall decoded <- p
+                    ^{viewDecodedPackage decoded}
     |]
 
 viewDecodedPackage :: Entity Package -> Widget
@@ -136,10 +131,10 @@ viewDecodedPackage (Entity _ p) =
     [whamlet|
         <table .table .table-striped .table-responsive>
             <tr>
-                <td>Version
+                <td .text-right>Version
                 <td>#{(toText . packageVersion) p}
             <tr>
-                <td>Summary
+                <td .text-right>Summary
                 <td>#{packageSummary p}
     |]
 
