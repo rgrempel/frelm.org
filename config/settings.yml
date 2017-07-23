@@ -32,4 +32,4 @@ database:
   database: "_env:PGDATABASE:frelm-packages_LOWER"
   poolsize: "_env:PGPOOLSIZE:10"
 
-#analytics: UA-YOURCODE
+analytics: UA-60216213-2
