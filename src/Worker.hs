@@ -20,6 +20,7 @@ import Data.List (nub)
 import Data.Map (traverseWithKey)
 import Data.OfficialPackage
 import Data.SemVer (Version, fromText, toText)
+import qualified Data.Text as DT
 import Data.Time.Clock
 import Data.Time.Format
 import Data.Yaml.Config (loadYamlSettings, useEnv)
@@ -68,8 +69,6 @@ data Command
     | CheckRepo Int64
     | RecheckRepo Int64
     | RecheckTags
-    | ReparseMissingPackages
-    | ReparseAllPackages
     | RunMigrations
     | Scrape
     | Tweet String
@@ -99,8 +98,6 @@ parseArgs = info (mainParser <**> helper) description
         command "recheck-tags" recheckTagsParser <>
         command "recheck-repo" recheckRepoParser <>
         command "check-repo" checkRepoParser <>
-        command "reparse-missing" reparseMissingParser <>
-        command "reparse-all" reparseAllParser <>
         command "scrape" scrapeParser <>
         command "tweet" tweetParser
     addRepoParser =
@@ -128,12 +125,6 @@ parseArgs = info (mainParser <**> helper) description
             (fmap CheckRepo $
              argument auto $ metavar "REPO_ID" <> help "repoId to check")
             (fullDesc <> progDesc "Check a repo")
-    reparseMissingParser =
-        info
-            (pure ReparseMissingPackages)
-            (fullDesc <> progDesc "Reparse missing")
-    reparseAllParser =
-        info (pure ReparseAllPackages) (fullDesc <> progDesc "Reparse All")
     scrapeParser = info (pure Scrape) (fullDesc <> progDesc "Scrape packages")
 
 runWorkerDB :: WorkerDB a -> WorkerT a
@@ -156,8 +147,6 @@ runWorker = do
                 MigrationSuccess -> pure ()
                 MigrationError err -> liftIO $ die err
         Crawl -> crawl
-        ReparseMissingPackages -> reparseMissingPackages
-        ReparseAllPackages -> reparseAllPackages
         Scrape -> scrape
         Tweet content -> void $ tweet $ pack content
 
@@ -317,17 +306,6 @@ checkTagsThread =
             then waitInterval maximumCheckInterval
             else waitInterval minimumCheckInterval
 
-reparseMissingPackages :: WorkerT ()
-reparseMissingPackages =
-    void $
-    runWorkerDB $
-    decodedPackageIsNull >>= traverse (decodePackageJSON TagRechecked)
-
-reparseAllPackages :: WorkerT ()
-reparseAllPackages =
-    void $
-    runWorkerDB $ allPackageChecks >>= traverse (decodePackageJSON TagRechecked)
-
 allPackageChecks :: WorkerDB [Entity PackageCheck]
 allPackageChecks = select $ from pure
 
@@ -484,37 +462,31 @@ checkNewTag reason repoId gitDir gitTag = do
                             ]
                     pc <-
                         do let elmPackageJson = gitDir </> "elm-package.json"
-                           hasElmPackage <-
-                               liftIO $ doesFileExist elmPackageJson
-                           if hasElmPackage
-                               then do
-                                   contents <-
-                                       liftIO $
-                                       decodeUtf8 <$> readFile elmPackageJson
-                                   upsert
-                                       PackageCheck
-                                       { packageCheckPackage = Just contents
-                                       , packageCheckDecodeError = Nothing
-                                       , packageCheckRepoVersion =
-                                             entityKey repoVersion
-                                       }
-                                       [ PackageCheckPackage P.=. Just contents
-                                       , PackageCheckDecodeError P.=. Nothing
-                                       ]
-                               else upsert
-                                        PackageCheck
-                                        { packageCheckPackage = Nothing
-                                        , packageCheckDecodeError = Nothing
-                                        , packageCheckRepoVersion =
-                                              entityKey repoVersion
-                                        }
-                                        [ PackageCheckPackage P.=. Nothing
-                                        , PackageCheckDecodeError P.=. Nothing
-                                        ]
-                    decodePackageJSON reason pc
+                           let readmeFile = gitDir </> "README.md"
+                           elmPackageContents <-
+                               liftIO $ safeGetContents elmPackageJson
+                           readmeContents <- liftIO $ safeGetContents readmeFile
+                           upsert
+                               PackageCheck
+                               { packageCheckPackage = elmPackageContents
+                               , packageCheckDecodeError = Nothing
+                               , packageCheckReadme = readmeContents
+                               , packageCheckRepoVersion = entityKey repoVersion
+                               }
+                               [ PackageCheckPackage P.=. elmPackageContents
+                               , PackageCheckDecodeError P.=. Nothing
+                               , PackageCheckReadme P.=. readmeContents
+                               ]
+                    decodePackageJSON reason gitDir pc
 
-decodePackageJSON :: TagCheckReason -> Entity PackageCheck -> WorkerDB ()
-decodePackageJSON reason pc =
+safeGetContents :: FilePath -> IO (Maybe Text)
+safeGetContents path =
+    doesFileExist path >>=
+    bool (pure Nothing) ((Just . decodeUtf8) <$> readFile path)
+
+decodePackageJSON ::
+       TagCheckReason -> FilePath -> Entity PackageCheck -> WorkerDB ()
+decodePackageJSON reason gitDir pc =
     forM_ ((packageCheckPackage . entityVal) pc) $ \contents ->
         case eitherDecodeStrict (encodeUtf8 contents) of
             Left err ->
@@ -553,14 +525,25 @@ decodePackageJSON reason pc =
                         ]
                 forM_ (nub $ elmPackageModules p) $ \moduleName -> do
                     moduleId <- either entityKey id <$> insertBy Module {..}
+                    let modulePath = unpack $ DT.replace "." "/" moduleName
+                    moduleSource <-
+                        liftIO $
+                        fmap (listToMaybe . catMaybes) $
+                        for (elmPackageSourceDirectories p) $ \srcDir ->
+                            safeGetContents $
+                            gitDir </> unpack srcDir </> modulePath <> ".elm"
                     void $
-                        insertUnique
+                        upsert
                             PackageModule
                             { packageModuleRepoVersion =
                                   (packageCheckRepoVersion . entityVal) pc
                             , packageModuleModuleId = moduleId
                             , packageModuleExposed = True
+                            , packageModuleSource = moduleSource
                             }
+                            [ PackageModuleExposed P.=. True
+                            , PackageModuleSource P.=. moduleSource
+                            ]
                 void $
                     flip traverseWithKey (elmPackageDependencies p) $ \libraryName dependencyVersion -> do
                         dependencyLibrary <-

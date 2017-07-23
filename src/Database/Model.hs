@@ -91,6 +91,7 @@ mkPersist
 
             package Text Maybe
             decodeError Text Maybe
+            readme Text Maybe
 
             UniquePackageCheck repoVersion
 
@@ -134,6 +135,7 @@ mkPersist
             repoVersion RepoVersionId
             moduleId ModuleId
             exposed Bool
+            source Text Maybe
             UniquePackageModule repoVersion moduleId
 
         ScrapeResult

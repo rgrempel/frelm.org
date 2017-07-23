@@ -77,7 +77,7 @@ getRepoVersionR repoId tag = do
                     where_ $
                         pm ^. PackageModuleRepoVersion ==. val (entityKey v)
                     orderBy [asc $ m ^. ModuleName]
-                    pure (pm, m)
+                    pure m
             dependencies <-
                 select $
                 from $ \(d `InnerJoin` l `LeftOuterJoin` depRepo `LeftOuterJoin` depVersion) -> do
@@ -137,7 +137,7 @@ viewDependencies deps =
                                             #{toText $ repoVersionVersion drv}
     |]
 
-viewModules :: [(Entity PackageModule, Entity Module)] -> Widget
+viewModules :: [Entity Module] -> Widget
 viewModules modules =
     [whamlet|
         <div .col-lg-6 .col-md-6 .col-sm-6 .col-xs-12>
@@ -145,7 +145,7 @@ viewModules modules =
                 <div .panel-heading>
                     <h3 .panel-title>Modules
                 <ul .list-group>
-                    $forall (_, Entity _ m) <- modules
+                    $forall (Entity _ m) <- modules
                         <li .list-group-item>#{moduleName m}
     |]
 

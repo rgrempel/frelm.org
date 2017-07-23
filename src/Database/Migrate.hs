@@ -66,6 +66,7 @@ migrations =
     , justOneTagCheckPerRepo
     , addScrapeResult
     , fixScrapeResultIndex
+    , addReadmeAndModuleSource
     ]
 
 migrateInitial :: MigrationCommand
@@ -738,4 +739,18 @@ fixScrapeResultIndex =
 
             CREATE INDEX scrape_result_ran_idx
                 ON scrape_result (ran);
+        |]
+
+addReadmeAndModuleSource :: MigrationCommand
+addReadmeAndModuleSource =
+    MigrationScript "add-readme-and-module-source" $
+    encodeUtf8
+        [text|
+            ALTER TABLE package_check
+                ADD COLUMN readme
+                    VARCHAR;
+
+            ALTER TABLE package_module
+                ADD COLUMN source
+                    VARCHAR;
         |]

@@ -20,6 +20,7 @@ data ElmPackage = ElmPackage
     , elmPackageSummary :: Text
     , elmPackageRepository :: Text
     , elmPackageLicense :: Text
+    , elmPackageSourceDirectories :: [Text]
     , elmPackageModules :: [Text]
     , elmPackageNativeModules :: Bool
     , elmPackageDependencies :: Map Text (Range Version)
@@ -38,6 +39,7 @@ instance FromJSON ElmPackage where
             elmPackageModules <- v .: "exposed-modules"
             elmPackageDependencies <- v .: "dependencies"
             elmPackageElmVersion <- v .:? "elm-version"
+            elmPackageSourceDirectories <- v .: "source-directories"
             elmPackageNativeModules <- v .:? "native-modules" .!= False
             pure ElmPackage {..}
 
