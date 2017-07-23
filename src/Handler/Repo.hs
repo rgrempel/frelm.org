@@ -140,7 +140,7 @@ viewDecodedPackage (Entity _ p) =
                 <td .text-right>license
                 <td>#{packageLicense p}
             <tr>
-                <td .text-right>native-odules
+                <td .text-right>native-modules
                 <td>#{packageNativeModules p}
             $forall elmVersion <- packageElmVersion p
                 <tr>
