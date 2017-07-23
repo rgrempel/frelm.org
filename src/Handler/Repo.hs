@@ -54,24 +54,51 @@ handle404 =
 
 getRepoVersionR :: RepoId -> Text -> Handler Html
 getRepoVersionR repoId tag = do
-    (v, pc, p) <-
-        handle404 $
-        runDB $
-        select $
-        from $ \(v `LeftOuterJoin` pc `LeftOuterJoin` p) -> do
-            on $ pc ?. PackageCheckRepoVersion ==. p ?. PackageRepoVersion
-            on $ just (v ^. RepoVersionId) ==. pc ?. PackageCheckRepoVersion
-            where_ $
-                (v ^. RepoVersionRepo ==. val repoId) &&.
-                (v ^. RepoVersionTag ==. val tag)
-            pure (v, pc, p)
+    (v, pc, p, modules) <-
+        runDB $ do
+            (v, pc, p) <-
+                handle404 $
+                select $
+                from $ \(v `LeftOuterJoin` pc `LeftOuterJoin` p) -> do
+                    on $
+                        pc ?. PackageCheckRepoVersion ==. p ?.
+                        PackageRepoVersion
+                    on $
+                        just (v ^. RepoVersionId) ==. pc ?.
+                        PackageCheckRepoVersion
+                    where_ $
+                        (v ^. RepoVersionRepo ==. val repoId) &&.
+                        (v ^. RepoVersionTag ==. val tag)
+                    pure (v, pc, p)
+            modules <-
+                select $
+                from $ \(pm `InnerJoin` m) -> do
+                    on $ m ^. ModuleId ==. pm ^. PackageModuleModuleId
+                    where_ $
+                        pm ^. PackageModuleRepoVersion ==. val (entityKey v)
+                    orderBy [asc $ m ^. ModuleName]
+                    pure (pm, m)
+            pure (v, pc, p, modules)
     defaultLayout
         [whamlet|
             <div .container>
                 <div .row>
                     ^{viewPackageCheck pc p}
                     ^{viewRepoVersion v}
+                    ^{viewModules modules}
         |]
+
+viewModules :: [(Entity PackageModule, Entity Module)] -> Widget
+viewModules modules =
+    [whamlet|
+        <div .col-lg-6 .col-md-6 .col-sm-6 .col-xs-12>
+            <div .panel.panel-default>
+                <div .panel-heading>
+                    <h3 .panel-title>Modules
+                <ul .list-group>
+                    $forall (_, Entity _ m) <- modules
+                        <li .list-group-item>#{moduleName m}
+    |]
 
 viewRepoVersion :: Entity RepoVersion -> Widget
 viewRepoVersion (Entity _ v) =
