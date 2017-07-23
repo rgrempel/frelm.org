@@ -112,7 +112,7 @@ viewRepoVersion (Entity _ v) =
                         <td .text-right>Tag
                         <td>#{repoVersionTag v}
                     <tr>
-                        <td .text-right>Commmitted At
+                        <td .text-right>Committed At
                         <td>#{(tshow . repoVersionCommittedAt) v}
     |]
 
