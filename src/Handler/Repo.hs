@@ -54,7 +54,7 @@ handle404 =
 
 getRepoVersionR :: RepoId -> Text -> Handler Html
 getRepoVersionR repoId tag = do
-    (v, pc, p, modules) <-
+    (v, pc, p, modules, dependencies) <-
         runDB $ do
             (v, pc, p) <-
                 handle404 $
@@ -78,7 +78,13 @@ getRepoVersionR repoId tag = do
                         pm ^. PackageModuleRepoVersion ==. val (entityKey v)
                     orderBy [asc $ m ^. ModuleName]
                     pure (pm, m)
-            pure (v, pc, p, modules)
+            dependencies <-
+                select $
+                from $ \(d `InnerJoin` l) -> do
+                    on $ d ^. DependencyLibrary ==. l ^. LibraryId
+                    where_ $ d ^. DependencyRepoVersion ==. val (entityKey v)
+                    pure (d, l)
+            pure (v, pc, p, modules, dependencies)
     defaultLayout
         [whamlet|
             <div .container>
@@ -86,7 +92,22 @@ getRepoVersionR repoId tag = do
                     ^{viewPackageCheck pc p}
                     ^{viewRepoVersion v}
                     ^{viewModules modules}
+                    ^{viewDependencies dependencies}
         |]
+
+viewDependencies :: [(Entity Dependency, Entity Library)] -> Widget
+viewDependencies deps =
+    [whamlet|
+        <div .col-lg-6 .col-md-6 .col-sm-6 .col-xs-12>
+            <div .panel.panel-default>
+                <div .panel-heading>
+                    <h3 .panel-title>Dependencies
+                <table .table .table-striped>
+                    $forall (Entity _ d, Entity _ library) <- deps
+                        <tr>
+                            <td .text-right>#{libraryName library}
+                            <td>#{showElmPackageRange toText $ dependencyVersion d}
+    |]
 
 viewModules :: [(Entity PackageModule, Entity Module)] -> Widget
 viewModules modules =
