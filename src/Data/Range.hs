@@ -40,6 +40,20 @@ elmPackageRange subparser = do
 parseElmComparator :: Parsec Text () (a -> Bound a)
 parseElmComparator = char '<' >> option Exclusive (const Inclusive <$> char '=')
 
+showElmPackageRange :: (a -> Text) -> Range a -> Text
+showElmPackageRange func (Range lowerBound upperBound) = initial <> "v" <> final
+  where
+    initial =
+        case lowerBound of
+            Inclusive a -> func a <> " <= "
+            Exclusive a -> func a <> " < "
+            Unspecified -> ""
+    final =
+        case upperBound of
+            Inclusive a -> " <= " <> func a
+            Exclusive a -> " < " <> func a
+            Unspecified -> ""
+
 -- | Parses the Postgres way of representing a range
 postgresRange :: Parsec Text () a -> Parsec Text () (Range a)
 postgresRange subparser = parseEmpty <|> parseRange

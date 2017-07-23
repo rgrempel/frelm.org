@@ -8,6 +8,7 @@
 module Handler.Repo where
 
 import Data.PersistSemVer
+import Data.Range
 import Data.SemVer (toText)
 import Database.Esqueleto
 import Import.App hiding (groupBy, on)
@@ -133,8 +134,18 @@ viewDecodedPackage (Entity _ p) =
     [whamlet|
         <table .table .table-striped .table-responsive>
             <tr>
-                <td .text-right>Version
+                <td .text-right>version
                 <td>#{(toText . packageVersion) p}
+            <tr>
+                <td .text-right>license
+                <td>#{packageLicense p}
+            <tr>
+                <td .text-right>native-odules
+                <td>#{packageNativeModules p}
+            $forall elmVersion <- packageElmVersion p
+                <tr>
+                    <td .text-right>elm-version
+                    <td>#{showElmPackageRange toText elmVersion}
     |]
 
 data SubmissionForm = SubmissionForm
