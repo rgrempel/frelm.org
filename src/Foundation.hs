@@ -61,24 +61,22 @@ data MenuTypes
 mkYesodData
     "App"
     [parseRoutes|
-        /static StaticR Static appStatic
         /auth   AuthR   Auth   getAuth
+        /profile ProfileR GET
 
         /favicon.ico FaviconR GET
         /robots.txt RobotsR GET
+        /sitemap.xml SitemapR GET
+        /static StaticR Static appStatic
 
         / HomeR GET
-
         /library LibrariesR GET
         /module ModulesR GET
         /recent RecentR GET
-
         /repo ReposR GET POST
+
         /repo/#RepoId RepoR GET
-
         /repo/#RepoId/#Text RepoVersionR GET
-
-        /profile ProfileR GET
     |]
 
 -- | A convenient synonym for creating forms.
@@ -205,6 +203,7 @@ instance Yesod App where
     isAuthorized ProfileR _ = isAuthenticated
     isAuthorized LibrariesR _ = pure Authorized
     isAuthorized RecentR _ = pure Authorized
+    isAuthorized SitemapR _ = pure Authorized
     isAuthorized ModulesR _ = pure Authorized
     isAuthorized (RepoVersionR _ _) _ = return Authorized
     isAuthorized (RepoR _) write = authorizeWrite write
@@ -248,6 +247,7 @@ instance YesodBreadcrumbs App where
     breadcrumb (StaticR _) = pure ("Static", Nothing)
     breadcrumb FaviconR = pure ("Favicon", Nothing)
     breadcrumb RobotsR = pure ("Robots", Nothing)
+    breadcrumb SitemapR = pure ("Sitemap", Nothing)
     breadcrumb HomeR = pure ("Home", Nothing)
     breadcrumb (AuthR _) = pure ("Login", Nothing)
     breadcrumb ProfileR = pure ("Profile", Nothing)

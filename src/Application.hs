@@ -53,6 +53,7 @@ import Handler.Module
 import Handler.Profile
 import Handler.Recent
 import Handler.Repo
+import Handler.Sitemap
 
 import System.Exit (die)
 
