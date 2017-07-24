@@ -369,6 +369,7 @@ recheckTags =
                         forM_ fetchedVersions $
                         checkNewTag TagRechecked (entityKey repo) dir
             transactionSave
+            lift $ waitInterval 5
 
 fetchKnownVersions :: RepoId -> WorkerDB [GitTag]
 fetchKnownVersions repoId =
