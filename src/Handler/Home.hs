@@ -26,19 +26,14 @@ getHomeR = do
                             Elm has a very fine official website dedicated to
                             discovering Elm packages, at
                             <a href="http://package.elm-lang.org">http://package.elm-lang.org.
-                            You should definitely consider trying that website,
-                            to see whether it fits your needs.
                         <p>
                             So, what's different here?
-
                         <ul>
                             <li>
                                 If you're a package author, you don't have to
                                 tell us about new versions. We'll look
-                                periodically and see if there are any.
-                            <li>
-                                The package need not be hosted on Github -- any
-                                git repository will do.
+                                periodically (about once a day) and see if there
+                                are any.
                             <li>
                                 If you're looking for packages, we keep track
                                 of a few things that the official Elm web-site
@@ -47,26 +42,11 @@ getHomeR = do
                                 have been most recently updated. We also have a
                                 list of all the Elm modules exposed by the
                                 packages we know about.
-
-                        <h3>Terminology
-
                         <p>
-                            Here are some notes about the terminology we're using
-                            here.
-                        <ul>
-                            <li>
-                                A "<b>repository</b>" refers to the Git
-                                repository where we found something.
-                            <li>
-                                A "<b>library</b>" is something like
-                                "elm-lang/core" ... that is, the "key" you use
-                                to identifiy a dependency.
-                            <li>
-                                A "<b>package</b>" is a specific version of a
-                                repository, implementing a library.
-                            <li>
-                                A "<b>module</b>" is something like `List` ...
-                                that is, the name of an Elm module.
+                            That being said, the
+                            <a href="http://package.elm-lang.org">official package website
+                            has a very well-considered design, and you may well prefer
+                            to use it.
                     |]
         toWidget
             [cassius|
