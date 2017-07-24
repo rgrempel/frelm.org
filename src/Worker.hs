@@ -32,6 +32,7 @@ import Database.Persist.Postgresql
 import GHC.IO.Exception (ExitCode(..))
 import Import.Worker hiding ((<>), isNothing, on, readFile)
 import LoadEnv (loadEnv, loadEnvFrom)
+import Network.URI
 import Options.Applicative as OA
 import System.Directory (doesFileExist)
 import System.Environment (getEnv)
@@ -337,8 +338,7 @@ checkRepoTags repo = do
         withSystemTempDirectory "git-clone" $ \basedir -> do
             gitdir <- cloneGitRepo repo basedir
             forM_ gitdir $ \dir ->
-                forM_ newVersions $
-                checkNewTag TagFirstSeen (entityKey repo) dir
+                forM_ newVersions $ checkNewTag TagFirstSeen repo dir
     transactionSave
 
 checkRepo :: RepoId -> WorkerT ()
@@ -353,8 +353,7 @@ recheckRepo repoId =
             withSystemTempDirectory "git-clone" $ \basedir -> do
                 gitdir <- cloneGitRepo repo basedir
                 forM_ gitdir $ \dir ->
-                    forM_ fetchedVersions $
-                    checkNewTag TagRechecked (entityKey repo) dir
+                    forM_ fetchedVersions $ checkNewTag TagRechecked repo dir
 
 recheckTags :: WorkerT ()
 recheckTags =
@@ -367,7 +366,7 @@ recheckTags =
                     gitdir <- cloneGitRepo repo basedir
                     forM_ gitdir $ \dir ->
                         forM_ fetchedVersions $
-                        checkNewTag TagRechecked (entityKey repo) dir
+                        checkNewTag TagRechecked repo dir
             transactionSave
             lift $ waitInterval 5
 
@@ -438,8 +437,9 @@ parseTag = do
         Right gitTagVersion -> pure GitTag {..}
         Left err -> unexpected err
 
-checkNewTag :: TagCheckReason -> Key Repo -> FilePath -> GitTag -> WorkerDB ()
-checkNewTag reason repoId gitDir gitTag = do
+checkNewTag ::
+       TagCheckReason -> Entity Repo -> FilePath -> GitTag -> WorkerDB ()
+checkNewTag reason repo gitDir gitTag = do
     result <- checkoutGitRepo gitDir (unpack $ gitTagTag gitTag)
     case result of
         Left err -> void $ $(logError) (tshow err)
@@ -451,7 +451,7 @@ checkNewTag reason repoId gitDir gitTag = do
                     repoVersion <-
                         upsert
                             RepoVersion
-                            { repoVersionRepo = repoId
+                            { repoVersionRepo = entityKey repo
                             , repoVersionVersion = gitTagVersion gitTag
                             , repoVersionSha = gitTagSha gitTag
                             , repoVersionTag = gitTagTag gitTag
@@ -478,96 +478,106 @@ checkNewTag reason repoId gitDir gitTag = do
                                , PackageCheckDecodeError P.=. Nothing
                                , PackageCheckReadme P.=. readmeContents
                                ]
-                    decodePackageJSON reason gitDir pc
+                    package <- decodePackageJSON gitDir pc
+                    when (reason == TagFirstSeen) $
+                        for_ package $ \p ->
+                            for_
+                                ((gitUrlToLibraryName . repoGitUrl . entityVal)
+                                     repo) $ \libraryName -> do
+                                let tweetText =
+                                        libraryName <> " " <>
+                                        (toText . gitTagVersion) gitTag <>
+                                        ": " <>
+                                        (packageSummary . entityVal) p
+                                void $ lift $ tweet $ toEllipsis 140 tweetText
 
 safeGetContents :: FilePath -> IO (Maybe Text)
-safeGetContents path =
-    doesFileExist path >>=
-    bool (pure Nothing) ((Just . decodeUtf8) <$> readFile path)
+safeGetContents fromPath =
+    doesFileExist fromPath >>=
+    bool (pure Nothing) ((Just . decodeUtf8) <$> readFile fromPath)
 
 decodePackageJSON ::
-       TagCheckReason -> FilePath -> Entity PackageCheck -> WorkerDB ()
-decodePackageJSON reason gitDir pc =
-    forM_ ((packageCheckPackage . entityVal) pc) $ \contents ->
-        case eitherDecodeStrict (encodeUtf8 contents) of
-            Left err ->
-                update $ \table -> do
-                    set
-                        table
-                        [PackageCheckDecodeError =. (val . Just . pack) err]
-                    where_ $ table ^. PackageCheckId ==. val (entityKey pc)
-            Right p -> do
-                update $ \table -> do
-                    set table [PackageCheckDecodeError =. val Nothing]
-                    where_ $ table ^. PackageCheckId ==. val (entityKey pc)
-                libraryId <-
-                    forM (elmPackageLibraryName p) $ \libraryName ->
-                        either entityKey id <$> insertBy Library {..}
-                void $
-                    upsert
-                        Package
-                        { packageRepoVersion =
-                              packageCheckRepoVersion $ entityVal pc
-                        , packageVersion = elmPackageVersion p
-                        , packageSummary = elmPackageSummary p
-                        , packageRepository = elmPackageRepository p
-                        , packageLibrary = libraryId
-                        , packageLicense = elmPackageLicense p
-                        , packageNativeModules = elmPackageNativeModules p
-                        , packageElmVersion = elmPackageElmVersion p
-                        }
-                        [ PackageVersion P.=. elmPackageVersion p
-                        , PackageSummary P.=. elmPackageSummary p
-                        , PackageRepository P.=. elmPackageRepository p
-                        , PackageLibrary P.=. libraryId
-                        , PackageLicense P.=. elmPackageLicense p
-                        , PackageNativeModules P.=. elmPackageNativeModules p
-                        , PackageElmVersion P.=. elmPackageElmVersion p
-                        ]
-                forM_ (nub $ elmPackageModules p) $ \moduleName -> do
-                    moduleId <- either entityKey id <$> insertBy Module {..}
-                    let modulePath = unpack $ DT.replace "." "/" moduleName
-                    moduleSource <-
-                        liftIO $
-                        fmap (listToMaybe . catMaybes) $
-                        for (elmPackageSourceDirectories p) $ \srcDir ->
-                            safeGetContents $
-                            gitDir </> unpack srcDir </> modulePath <> ".elm"
-                    void $
-                        upsert
-                            PackageModule
-                            { packageModuleRepoVersion =
-                                  (packageCheckRepoVersion . entityVal) pc
-                            , packageModuleModuleId = moduleId
-                            , packageModuleExposed = True
-                            , packageModuleSource = moduleSource
-                            }
-                            [ PackageModuleExposed P.=. True
-                            , PackageModuleSource P.=. moduleSource
-                            ]
-                void $
-                    flip traverseWithKey (elmPackageDependencies p) $ \libraryName dependencyVersion -> do
-                        dependencyLibrary <-
+       FilePath -> Entity PackageCheck -> WorkerDB (Maybe (Entity Package))
+decodePackageJSON gitDir pc =
+    case packageCheckPackage $ entityVal pc of
+        Nothing -> pure Nothing
+        Just contents ->
+            case eitherDecodeStrict (encodeUtf8 contents) of
+                Left err -> do
+                    update $ \table -> do
+                        set
+                            table
+                            [PackageCheckDecodeError =. (val . Just . pack) err]
+                        where_ $ table ^. PackageCheckId ==. val (entityKey pc)
+                    pure Nothing
+                Right p -> do
+                    update $ \table -> do
+                        set table [PackageCheckDecodeError =. val Nothing]
+                        where_ $ table ^. PackageCheckId ==. val (entityKey pc)
+                    libraryId <-
+                        forM (elmPackageLibraryName p) $ \libraryName ->
                             either entityKey id <$> insertBy Library {..}
-                        let dependencyRepoVersion =
-                                (packageCheckRepoVersion . entityVal) pc
-                        -- We insert the Repo that the dependency represents so that
-                        -- we'll check it as well.
+                    package <-
+                        upsert
+                            Package
+                            { packageRepoVersion =
+                                  packageCheckRepoVersion $ entityVal pc
+                            , packageVersion = elmPackageVersion p
+                            , packageSummary = elmPackageSummary p
+                            , packageRepository = elmPackageRepository p
+                            , packageLibrary = libraryId
+                            , packageLicense = elmPackageLicense p
+                            , packageNativeModules = elmPackageNativeModules p
+                            , packageElmVersion = elmPackageElmVersion p
+                            }
+                            [ PackageVersion P.=. elmPackageVersion p
+                            , PackageSummary P.=. elmPackageSummary p
+                            , PackageRepository P.=. elmPackageRepository p
+                            , PackageLibrary P.=. libraryId
+                            , PackageLicense P.=. elmPackageLicense p
+                            , PackageNativeModules P.=.
+                              elmPackageNativeModules p
+                            , PackageElmVersion P.=. elmPackageElmVersion p
+                            ]
+                    forM_ (nub $ elmPackageModules p) $ \moduleName -> do
+                        moduleId <- either entityKey id <$> insertBy Module {..}
+                        let modulePath = unpack $ DT.replace "." "/" moduleName
+                        moduleSource <-
+                            liftIO $
+                            fmap (listToMaybe . catMaybes) $
+                            for (elmPackageSourceDirectories p) $ \srcDir ->
+                                safeGetContents $
+                                gitDir </> unpack srcDir </> modulePath <>
+                                ".elm"
                         void $
-                            insertBy
-                                Repo
-                                { repoGitUrl = libraryNameToGitUrl libraryName
-                                , repoSubmittedBy = Nothing
+                            upsert
+                                PackageModule
+                                { packageModuleRepoVersion =
+                                      (packageCheckRepoVersion . entityVal) pc
+                                , packageModuleModuleId = moduleId
+                                , packageModuleExposed = True
+                                , packageModuleSource = moduleSource
                                 }
-                        void $ insertUnique Dependency {..}
-                when (reason == TagFirstSeen) $
-                    forM_ (elmPackageLibraryName p) $ \libraryName -> do
-                        let tweetText =
-                                libraryName <> " " <>
-                                (toText . elmPackageVersion) p <>
-                                ": " <>
-                                elmPackageSummary p
-                        void $ lift $ tweet $ toEllipsis 140 tweetText
+                                [ PackageModuleExposed P.=. True
+                                , PackageModuleSource P.=. moduleSource
+                                ]
+                    void $
+                        flip traverseWithKey (elmPackageDependencies p) $ \libraryName dependencyVersion -> do
+                            dependencyLibrary <-
+                                either entityKey id <$> insertBy Library {..}
+                            let dependencyRepoVersion =
+                                    (packageCheckRepoVersion . entityVal) pc
+                            -- We insert the Repo that the dependency represents so that
+                            -- we'll check it as well.
+                            void $
+                                insertBy
+                                    Repo
+                                    { repoGitUrl =
+                                          libraryNameToGitUrl libraryName
+                                    , repoSubmittedBy = Nothing
+                                    }
+                            void $ insertUnique Dependency {..}
+                    pure (Just package)
 
 toEllipsis :: Int -> Text -> Text
 toEllipsis maxLen t =
@@ -705,3 +715,8 @@ scrape = do
 
 libraryNameToGitUrl :: Text -> Text
 libraryNameToGitUrl libraryName = "https://github.com/" <> libraryName <> ".git"
+
+gitUrlToLibraryName :: Text -> Maybe Text
+gitUrlToLibraryName gitUrl = do
+    uri <- parseAbsoluteURI $ unpack gitUrl
+    stripSuffix ".git" (pack $ uriPath uri) >>= stripPrefix "/"

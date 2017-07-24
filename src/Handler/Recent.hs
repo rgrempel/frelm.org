@@ -62,8 +62,8 @@ getRecentR = do
                                             #{libraryName l}
                                         <dd>
                                             <a href="@{RepoVersionR (repoVersionRepo rv) (repoVersionTag rv)}">
-                                                <span .label.#{labelForVersion $ packageVersion p}>
-                                                    #{toText $ packageVersion p}
+                                                <span .label.#{labelForVersion $ repoVersionVersion rv}>
+                                                    #{toText $ repoVersionVersion rv}
                                             #{packageSummary p}
         |]
         toWidget
