@@ -14,7 +14,7 @@ import Import.App
 -- runtime dependency, and for efficiency.
 getFaviconR :: Handler TypedContent
 getFaviconR = do
-    cacheSeconds $ 60 * 60 * 24 * 30 -- cache for a month
+    cacheSeconds $ 60 * 60 * 24 -- cache for a day
     return $
         TypedContent "image/x-icon" $
         toContent $(embedFile "config/favicon.ico")
