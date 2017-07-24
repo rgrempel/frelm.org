@@ -15,12 +15,12 @@ import Import.App hiding (on)
 import qualified Import.App as Prelude
 
 -- | What we want to "get" here is every library, along with some sense
--- of the packages which implement the library. For that, so far, we
+-- of the packages which implement the library. For that, we
 -- consult the **declared** reppository in the elm-package.json,
--- ignoring where we **actually** obtained it. (Whether this makes sense
--- will need to be reconsidered at some point -- will need to do some
--- investigation of the signfiicance of the declared repository vs.
--- the actual repository).
+-- ignoring where we **actually** obtained it.
+--
+-- This makes sense on this page, I think, because we also have the
+-- repositories page where you can see a list of repositories.
 getLibrariesR :: Handler Html
 getLibrariesR = do
     result <-
@@ -41,7 +41,7 @@ getLibrariesR = do
                           pure $ max_ $ rv2 ^. RepoVersionVersion))
             orderBy
                 [asc $ l ^. LibraryName, desc $ rv ^. RepoVersionCommittedAt]
-            pure (l, r, rv, p)
+            pure (l, r ^. RepoGitUrl, rv, p ^. PackageSummary)
     wrapper <- newIdent
     repoClass <- newIdent
     packageClass <- newIdent
@@ -60,18 +60,20 @@ getLibrariesR = do
                     <p>
                         Normally, there is a well-defined relationship between
                         a "library" and a "repository", in the sense that
-                        <code>elm-lang/core</code> is necessarily to be found
+                        <code>elm-lang/core</code> is to be found
                         at <code>https://github.com/elm-lang/core.git</code>.
                         And, one would expect the <code>repository</code> field of the
                         <code>elm-package.json</code> file to reflect that.
+                        However, it doesn't always do so, for a variety of
+                        reasons.
                     <p>
                         For now, at least, the list here is based on an
                         interpretation of the <code>repository</code> field in
                         the <code>elm-package.json</code> file, rather than the
-                        actual location of the repository where we found it. If
-                        you want to see a list of where we found things, you
-                        can look at the <a href="@{ReposR}">repositories
-                        page</a>.
+                        actual location of the repository where we found it.
+                        But, we do also show a link to our page for the actual
+                        repository. And if you want to see a list of repositories,
+                        you can look at the <a href="@{ReposR}">repositories page</a>.
                 <div .row>
                     <div .col-lg-12>
                         <dl>
@@ -79,16 +81,16 @@ getLibrariesR = do
                                 $forall (Entity _ library, _, _, _) <- listToMaybe byLibrary
                                     <dt>#{libraryName library}
                                     <dd>
-                                        $forall (_, Entity _ repo, Entity _ rv, Entity _ package) <- byLibrary
+                                        $forall (_, gitUrl, Entity _ rv, summary) <- byLibrary
                                             <div .#{repoClass}>
                                                 <div .#{packageClass}>
                                                     <a href="@{RepoVersionR (repoVersionRepo rv) (repoVersionTag rv)}">
                                                         <span .label.#{labelForVersion $ repoVersionVersion rv}>
                                                             #{(toText . repoVersionVersion) rv}
-                                                    #{packageSummary package}
+                                                        #{unValue summary}
                                                 <div>
                                                     <a href="@{RepoR $ repoVersionRepo rv}">
-                                                        #{repoGitUrl repo}
+                                                        #{unValue gitUrl}
         |]
         toWidget
             [cassius|
@@ -100,4 +102,14 @@ getLibrariesR = do
 
                     .#{repoClass}
                         margin-bottom: 0.4em
+
+                        a:visited
+                            color: black
+
+                        a:link
+                            color: black
+
+                        .label
+                            position: relative
+                            top: -2px
             |]
