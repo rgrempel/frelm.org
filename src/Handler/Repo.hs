@@ -7,6 +7,7 @@
 
 module Handler.Repo where
 
+import Cheapskate hiding (Entity)
 import Data.PersistSemVer
 import Data.Range
 import Data.SemVer (toText)
@@ -111,6 +112,8 @@ getRepoVersionR repoId tag = do
                     ^{viewRepoVersion v}
                     ^{viewModules modules}
                     ^{viewDependencies dependencies}
+                <div .row>
+                    ^{viewReadme pc}
         |]
 
 viewDependencies ::
@@ -204,6 +207,22 @@ viewPackageCheck pc p =
                 $forall decoded <- p
                     ^{viewDecodedPackage decoded}
     |]
+
+viewReadme :: Maybe (Entity PackageCheck) -> Widget
+viewReadme pc =
+    [whamlet|
+        $forall Entity _ packageCheck <- pc
+            $forall readme <- packageCheckReadme packageCheck
+                <div .col-lg-12>
+                    <div .panel.panel-default>
+                        <div .panel-heading>
+                            <h3 .panel-title>README
+                        <div .panel-body>
+                            ^{viewMarkdown readme}
+    |]
+
+viewMarkdown :: Text -> Widget
+viewMarkdown text = toWidget $ \_ -> (toHtml . markdown def) text
 
 viewDecodedPackage :: Entity Package -> Widget
 viewDecodedPackage (Entity _ p) =
