@@ -1,0 +1,9 @@
+.hljs {
+    background-color: inherit !important;
+    padding: 0 !important;
+}
+
+pre.elm {
+    margin-left: 3em;
+    margin-right: 3em;
+}

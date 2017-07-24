@@ -222,7 +222,12 @@ viewReadme pc =
     |]
 
 viewMarkdown :: Text -> Widget
-viewMarkdown text = toWidget $ \_ -> (toHtml . markdown def) text
+viewMarkdown text = do
+    addStylesheet $ StaticR highlight_js_styles_tomorrow_css
+    addStylesheet $ StaticR css_highlight_js_css
+    addScript $ StaticR highlight_js_highlight_pack_js
+    addScript $ StaticR scripts_init_highlight_js_js
+    toWidget $ \_ -> (toHtml . markdown def) text
 
 viewDecodedPackage :: Entity Package -> Widget
 viewDecodedPackage (Entity _ p) =

@@ -28,4 +28,8 @@ staticFilesList (appStaticDir compileTimeAppSettings)
     , "bower_components/bootstrap/dist/fonts/glyphicons-halflings-regular.ttf"
     , "bower_components/bootstrap/dist/fonts/glyphicons-halflings-regular.woff"
     , "bower_components/bootstrap/dist/fonts/glyphicons-halflings-regular.woff2"
+    , "highlight-js/highlight.pack.js"
+    , "highlight-js/styles/tomorrow.css"
+    , "scripts/init-highlight-js.js"
+    , "css/highlight-js.css"
     ]
