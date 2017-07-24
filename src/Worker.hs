@@ -567,7 +567,8 @@ decodePackageJSON gitDir pc =
                             let dependencyRepoVersion =
                                     (packageCheckRepoVersion . entityVal) pc
                             -- We insert the Repo that the dependency represents so that
-                            -- we'll check it as well.
+                            -- we'll check it as well. Eventually, we should take
+                            -- the `dependency-sources` field into account as well.
                             void $
                                 insertBy
                                     Repo
