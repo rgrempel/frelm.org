@@ -31,9 +31,6 @@ getRepoR repoId = do
                         <div .panel.panel-default>
                             <div .panel-heading>
                                 <h3 .panel-title>Tags
-                            <div .panel-body>
-                                We look for tags that are formatted as a Semantic Version ...
-                                for instance, 1.0.0. We check for new tags about once a day.
                             <table .table .table-striped .table-responsive>
                                 $forall Entity _ version <- versions
                                     <tr>
