@@ -274,9 +274,10 @@ getReposR = do
                               version2 ^. RepoVersionRepo ==. repo ^. RepoId
                           pure $ max_ $ version2 ^. RepoVersionVersion))
             orderBy [asc $ repo ^. RepoGitUrl]
-            pure (repo, version, package)
+            pure (repo, version, package ?. PackageSummary)
     isLoggedIn <- isJust <$> maybeAuth
     wrapper <- newIdent
+    listWrapper <- newIdent
     defaultLayout $ do
         setTitle "Elm Repositories"
         [whamlet|
@@ -291,7 +292,7 @@ getReposR = do
                             where we actually found them, not necessarily what is
                             declared in the <code>repository</code> field of an
                             <code>elm-package.json</code> file. For a list that
-                            is based on the <code>repository</code>, see the
+                            is based on the <code>repository</code> field, see the
                             <a href="@{LibrariesR}">libraries page</a>.
                     <div .col-md-6>
                         <p>
@@ -316,18 +317,18 @@ getReposR = do
                                 <a href="@{AuthR LoginR}">Login</a> to submit a Git URL for us to monitor.
                 <div .row>
                     <div .col-lg-12>
-                        <dl>
-                            $forall (repo, version, package) <- repos
+                        <dl .#{listWrapper}>
+                            $forall (repo, version, summary) <- repos
                                 <dt>
                                     <a href=@{RepoR (entityKey repo)}>
                                         #{(repoGitUrl . entityVal) repo}
                                 <dd>
                                     $forall v <- version
-                                        $forall p <- package
+                                        $forall s <- unValue summary
                                             <a href="@{RepoVersionR (repoVersionRepo $ entityVal v) (repoVersionTag $ entityVal v)}">
                                                 <span .label.#{labelForVersion $ repoVersionVersion $ entityVal v}>
                                                     #{toText $ repoVersionVersion $ entityVal v}
-                                            #{packageSummary $ entityVal p}
+                                                #{s}
         |]
         toWidget
             [cassius|
@@ -336,6 +337,14 @@ getReposR = do
                         margin-top: 1em
                     dd
                         margin-left: 2em
+
+                .#{listWrapper}
+                    a:visited, a:link
+                        color: black
+
+                .label
+                    position: relative
+                    top: -1px
             |]
 
 postReposR :: Handler Html
