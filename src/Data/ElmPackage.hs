@@ -44,6 +44,12 @@ instance FromJSON ElmPackage where
             pure ElmPackage {..}
 
 elmPackageLibraryName :: ElmPackage -> Maybe Text
-elmPackageLibraryName package = do
-    uri <- (parseAbsoluteURI . unpack) $ elmPackageRepository package
+elmPackageLibraryName = gitUrlToLibraryName . elmPackageRepository
+
+libraryNameToGitUrl :: Text -> Text
+libraryNameToGitUrl libraryName = "https://github.com/" <> libraryName <> ".git"
+
+gitUrlToLibraryName :: Text -> Maybe Text
+gitUrlToLibraryName gitUrl = do
+    uri <- parseAbsoluteURI $ unpack gitUrl
     stripSuffix ".git" (pack $ uriPath uri) >>= stripPrefix "/"

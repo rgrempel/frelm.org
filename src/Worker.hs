@@ -32,7 +32,6 @@ import Database.Persist.Postgresql
 import GHC.IO.Exception (ExitCode(..))
 import Import.Worker hiding ((<>), isNothing, on, readFile)
 import LoadEnv (loadEnv, loadEnvFrom)
-import Network.URI
 import Options.Applicative as OA
 import System.Directory (doesFileExist)
 import System.Environment (getEnv)
@@ -712,11 +711,3 @@ scrape = do
                         either entityKey id <$> insertBy Library {..}
                     forM_ (officialPackageVersions package) $ \publishedVersionVersion ->
                         void $ insertBy PublishedVersion {..}
-
-libraryNameToGitUrl :: Text -> Text
-libraryNameToGitUrl libraryName = "https://github.com/" <> libraryName <> ".git"
-
-gitUrlToLibraryName :: Text -> Maybe Text
-gitUrlToLibraryName gitUrl = do
-    uri <- parseAbsoluteURI $ unpack gitUrl
-    stripSuffix ".git" (pack $ uriPath uri) >>= stripPrefix "/"
