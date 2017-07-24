@@ -7,6 +7,7 @@
 
 module Handler.Module where
 
+import Data.ElmPackage
 import Data.PersistSemVer
 import Data.SemVer (toText)
 import Database.Esqueleto
@@ -21,7 +22,7 @@ getModulesR = do
                  (Prelude.on (==) (\(moduleId, _, _, _) -> moduleId))) $
         runDB $
         select $
-        from $ \(m `InnerJoin` pm `InnerJoin` p `InnerJoin` l `InnerJoin` rv `InnerJoin` r) -> do
+        from $ \(m `InnerJoin` pm `InnerJoin` p `InnerJoin` rv `InnerJoin` r) -> do
             on $
                 (r ^. RepoId ==. rv ^. RepoVersionRepo) &&.
                 (just (rv ^. RepoVersionVersion) ==.
@@ -30,11 +31,10 @@ getModulesR = do
                           where_ $ rv2 ^. RepoVersionRepo ==. r ^. RepoId
                           pure $ max_ $ rv2 ^. RepoVersionVersion))
             on $ p ^. PackageRepoVersion ==. rv ^. RepoVersionId
-            on $ p ^. PackageLibrary ==. just (l ^. LibraryId)
             on $ pm ^. PackageModuleRepoVersion ==. p ^. PackageRepoVersion
             on $ m ^. ModuleId ==. pm ^. PackageModuleModuleId
             orderBy [asc $ m ^. ModuleName, desc $ rv ^. RepoVersionCommittedAt]
-            pure (m ^. ModuleId, m ^. ModuleName, l ^. LibraryName, rv)
+            pure (m ^. ModuleId, m ^. ModuleName, r ^. RepoGitUrl, rv)
     wrapper <- newIdent
     packageClass <- newIdent
     defaultLayout $ do
@@ -57,12 +57,12 @@ getModulesR = do
                                 $forall (_, moduleName, _, _) <- listToMaybe byModule
                                     <dt>#{unValue moduleName}
                                     <dd>
-                                        $forall (_, _, libraryName, Entity _ rv) <- byModule
+                                        $forall (_, _, Value gitUrl, Entity _ rv) <- byModule
                                             <div .#{packageClass}>
                                                 <a href="@{RepoVersionR (repoVersionRepo rv) (repoVersionTag rv)}">
                                                     <span .label.#{labelForVersion $ repoVersionVersion rv}>
                                                         #{(toText . repoVersionVersion) rv}
-                                                #{unValue libraryName}
+                                                    #{fromMaybe gitUrl $ gitUrlToLibraryName gitUrl}
         |]
         toWidget
             [cassius|
@@ -74,4 +74,11 @@ getModulesR = do
 
                 .#{packageClass}
                     margin-bottom: 0.2em
+
+                    a:link, a:visited
+                        color: black
+
+                    .label
+                        position: relative
+                        top: -1px
             |]
