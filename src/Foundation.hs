@@ -77,6 +77,7 @@ mkYesodData
 
         /repo/#RepoId RepoR GET
         /repo/#RepoId/#Text RepoVersionR GET
+        /repo/#RepoId/#Text/#Text ModuleR GET
     |]
 
 -- | A convenient synonym for creating forms.
@@ -206,6 +207,7 @@ instance Yesod App where
     isAuthorized SitemapR _ = pure Authorized
     isAuthorized ModulesR _ = pure Authorized
     isAuthorized (RepoVersionR _ _) _ = return Authorized
+    isAuthorized ModuleR {} _ = return Authorized
     isAuthorized (RepoR _) write = authorizeWrite write
     isAuthorized ReposR write = authorizeWrite write
     -- This function creates static content files in the static folder
@@ -254,6 +256,8 @@ instance YesodBreadcrumbs App where
     breadcrumb LibrariesR = pure ("Libraries", Nothing)
     breadcrumb RecentR = pure ("Recent", Nothing)
     breadcrumb ModulesR = pure ("Modules", Nothing)
+    breadcrumb (ModuleR repoId tag module_) =
+        pure (module_, Just (RepoVersionR repoId tag))
     breadcrumb (RepoVersionR repoId tag) = pure (tag, Just (RepoR repoId))
     breadcrumb ReposR = pure ("Repositories", Nothing)
     breadcrumb (RepoR repoId) =

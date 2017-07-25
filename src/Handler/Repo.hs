@@ -107,7 +107,7 @@ getRepoVersionR repoId tag = do
                 <div .row>
                     ^{viewPackageCheck pc p}
                     ^{viewRepoVersion v}
-                    ^{viewModules modules}
+                    ^{viewModules v modules}
                     ^{viewDependencies dependencies}
                 <div .row>
                     ^{viewReadme pc}
@@ -137,8 +137,8 @@ viewDependencies deps =
                                             #{toText $ repoVersionVersion drv}
     |]
 
-viewModules :: [Entity Module] -> Widget
-viewModules modules =
+viewModules :: Entity RepoVersion -> [Entity Module] -> Widget
+viewModules (Entity _ rv) modules =
     [whamlet|
         <div .col-lg-6 .col-md-6 .col-sm-6 .col-xs-12>
             <div .panel.panel-default>
@@ -146,7 +146,9 @@ viewModules modules =
                     <h3 .panel-title>Modules
                 <ul .list-group>
                     $forall (Entity _ m) <- modules
-                        <li .list-group-item>#{moduleName m}
+                        <li .list-group-item>
+                            <a href="@{ModuleR (repoVersionRepo rv) (repoVersionTag rv) (moduleName m)}">
+                                #{moduleName m}
     |]
 
 viewRepoVersion :: Entity RepoVersion -> Widget

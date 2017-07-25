@@ -14,6 +14,45 @@ import Database.Esqueleto
 import Import.App hiding (groupBy, on)
 import qualified Import.App as Prelude
 
+handle404 :: MonadHandler m => m [a] -> m a
+handle404 =
+    (=<<) $ \b ->
+        case b of
+            initial:_ -> pure initial
+            [] -> notFound
+
+getModuleR :: RepoId -> Text -> Text -> Handler Html
+getModuleR repoId tag module_ = do
+    (Entity _ pm, Value license) <-
+        runDB $
+        handle404 $
+        select $
+        from $ \(rv `InnerJoin` pm `InnerJoin` m `InnerJoin` p) -> do
+            on $ pm ^. PackageModuleRepoVersion ==. p ^. PackageRepoVersion
+            on $ pm ^. PackageModuleModuleId ==. m ^. ModuleId
+            on $ pm ^. PackageModuleRepoVersion ==. rv ^. RepoVersionId
+            where_ $
+                (rv ^. RepoVersionRepo ==. val repoId) &&.
+                (rv ^. RepoVersionTag ==. val tag) &&.
+                (m ^. ModuleName ==. val module_)
+            pure (pm, p ^. PackageLicense)
+    defaultLayout $ do
+        addStylesheet $ StaticR highlight_js_styles_tomorrow_css
+        addStylesheet $ StaticR css_highlight_js_css
+        addScript $ StaticR highlight_js_highlight_pack_js
+        addScript $ StaticR scripts_init_highlight_js_js
+        [whamlet|
+            <div .container>
+                <div .row>
+                    <div .col-lg-12>
+                        $forall source <- packageModuleSource pm
+                            <div .alert.alert-success>
+                                License: #{license}
+                            <pre .elm>
+                                <code>
+                                    #{source}
+        |]
+
 getModulesR :: Handler Html
 getModulesR = do
     result <-
@@ -54,12 +93,12 @@ getModulesR = do
                     <div .col-lg-12>
                         <dl>
                             $forall byModule <- result
-                                $forall (_, moduleName, _, _) <- listToMaybe byModule
-                                    <dt>#{unValue moduleName}
+                                $forall (_, Value moduleName, _, _) <- listToMaybe byModule
+                                    <dt>#{moduleName}
                                     <dd>
                                         $forall (_, _, Value gitUrl, Entity _ rv) <- byModule
                                             <div .#{packageClass}>
-                                                <a href="@{RepoVersionR (repoVersionRepo rv) (repoVersionTag rv)}">
+                                                <a href="@{ModuleR (repoVersionRepo rv) (repoVersionTag rv) moduleName}">
                                                     <span .label.#{labelForVersion $ repoVersionVersion rv}>
                                                         #{(toText . repoVersionVersion) rv}
                                                     #{fromMaybe gitUrl $ gitUrlToLibraryName gitUrl}
