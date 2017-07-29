@@ -142,4 +142,13 @@ mkPersist
             ran UTCTime
             got Int Maybe
             error Text Maybe
+
+        ElmVersion
+            version Version Maybe
+            UniqueElmVersion version !force
+
+        RepoRange sql=repo_elm_version
+            repoId RepoId
+            elmVersion Version Maybe
+            repoVersion Version Maybe
     |]

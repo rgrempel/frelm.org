@@ -31,5 +31,6 @@ staticFilesList (appStaticDir compileTimeAppSettings)
     , "highlight-js/highlight.pack.js"
     , "highlight-js/styles/tomorrow.css"
     , "scripts/init-highlight-js.js"
+    , "scripts/version-button.js"
     , "css/highlight-js.css"
     ]

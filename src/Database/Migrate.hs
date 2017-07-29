@@ -67,6 +67,7 @@ migrations =
     , addScrapeResult
     , fixScrapeResultIndex
     , addReadmeAndModuleSource
+    , addRepoElmVersionView
     ]
 
 migrateInitial :: MigrationCommand
@@ -753,4 +754,35 @@ addReadmeAndModuleSource =
             ALTER TABLE package_module
                 ADD COLUMN source
                     VARCHAR;
+        |]
+
+addRepoElmVersionView :: MigrationCommand
+addRepoElmVersionView =
+    MigrationScript "add-repo-elm-verson-view" $
+    encodeUtf8
+        [text|
+            CREATE TABLE elm_version
+                ( id
+                    BIGSERIAL
+                    PRIMARY KEY
+
+                , version
+                    SEMVER
+                    CONSTRAINT elm_version_unique UNIQUE
+                );
+
+            INSERT INTO elm_version (version)
+                VALUES (NULL), ('0.14.0'), ('0.15.1'), ('0.16.1'), ('0.17.1'), ('0.18.0');
+
+            CREATE VIEW repo_elm_version
+                (repo_id, elm_version, repo_version) AS
+                SELECT r.id, v.version, MAX(p.version)
+                FROM repo_version rv
+                CROSS JOIN elm_version v
+                INNER JOIN package p
+                    ON ((v.version <@ p.elm_version) OR (v.version IS NULL))
+                    AND p.repo_version = rv.id
+                RIGHT OUTER JOIN repos r
+                    ON r.id = rv.repo
+                GROUP BY r.id, v.version;
         |]
