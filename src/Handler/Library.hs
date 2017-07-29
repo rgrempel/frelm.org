@@ -9,9 +9,10 @@
 module Handler.Library where
 
 import Data.PersistSemVer
-import Data.SemVer (toText)
+import Data.SemVer (Version, toText)
 import Database.Esqueleto
-import Import.App hiding (on)
+import Handler.Common
+import Import.App hiding (Value, on)
 import qualified Import.App as Prelude
 
 -- | What we want to "get" here is every library, along with some sense
@@ -26,29 +27,30 @@ getLibrariesR = do
     result <-
         fmap
             (Prelude.groupBy
-                 (Prelude.on (==) (\(Entity libraryId _, _, _, _) -> libraryId))) $
+                 (Prelude.on
+                      (==)
+                      (\(Entity libraryId _, _, _, _, _) -> libraryId))) $
         runDB $
         select $
-        from $ \(r `InnerJoin` rv `InnerJoin` p `InnerJoin` l) -> do
+        from $ \(r `InnerJoin` rr `InnerJoin` rv `InnerJoin` p `InnerJoin` l) -> do
             on $ p ^. PackageLibrary ==. just (l ^. LibraryId)
             on $ rv ^. RepoVersionId ==. (p ^. PackageRepoVersion)
             on $
                 (r ^. RepoId ==. rv ^. RepoVersionRepo) &&.
-                (just (rv ^. RepoVersionVersion) ==.
-                 sub_select
-                     (from $ \rv2 -> do
-                          where_ $ rv2 ^. RepoVersionRepo ==. r ^. RepoId
-                          pure $ max_ $ rv2 ^. RepoVersionVersion))
-            orderBy
-                [asc $ l ^. LibraryName, desc $ rv ^. RepoVersionCommittedAt]
-            pure (l, r ^. RepoGitUrl, rv, p ^. PackageSummary)
+                (rr ^. RepoRangeRepoVersion ==. just (rv ^. RepoVersionVersion))
+            on $ r ^. RepoId ==. rr ^. RepoRangeRepoId
+            orderBy [asc $ l ^. LibraryName, asc $ r ^. RepoGitUrl]
+            pure
+                ( l
+                , r ^. RepoGitUrl
+                , rv
+                , p ^. PackageSummary
+                , rr ^. RepoRangeElmVersion)
     wrapper <- newIdent
-    repoClass <- newIdent
-    packageClass <- newIdent
     defaultLayout $ do
         setTitle "Elm Libraries"
         [whamlet|
-            <div .container.#{wrapper}>
+            <div .container>
                 <div .row>
                     <p>
                         This is a list of all the Elm libraries we know about.
@@ -74,42 +76,71 @@ getLibrariesR = do
                         But, we do also show a link to our page for the actual
                         repository. And if you want to see a list of repositories,
                         you can look at the <a href="@{ReposR}">repositories page</a>.
-                <div .row>
+                <div .row .text-center>
+                    ^{elmVersionWidget}
+                <div .row .#{wrapper}>
                     <div .col-lg-12>
-                        <dl>
-                            $forall byLibrary <- result
-                                $forall (Entity _ library, _, _, _) <- listToMaybe byLibrary
-                                    <dt>#{libraryName library}
-                                    <dd>
-                                        $forall (_, gitUrl, Entity _ rv, summary) <- byLibrary
-                                            <div .#{repoClass}>
-                                                <div .#{packageClass}>
-                                                    <a href="@{RepoVersionR (repoVersionRepo rv) (repoVersionTag rv)}">
-                                                        <span .label.#{labelForVersion $ repoVersionVersion rv}>
-                                                            #{(toText . repoVersionVersion) rv}
-                                                        #{unValue summary}
-                                                <div>
-                                                    <a href="@{RepoR $ repoVersionRepo rv}">
-                                                        #{unValue gitUrl}
+                        $forall byLibrary <- result
+                            ^{viewLibrary byLibrary}
+
         |]
         toWidget
             [cassius|
                 .#{wrapper}
-                    dt
+                    .library
                         margin-top: 0.6em
-                    dd
-                        margin-left: 2em
 
-                    .#{repoClass}
+                    .label
+                        position: relative
+                        top: -1px
+
+                    a:visited, a:link
+                        color: black
+
+                    .libraryName
+                        font-weight: bold
+
+                    .repo
+                        margin-left: 2em
                         margin-bottom: 0.4em
 
-                        a:visited
-                            color: black
-
-                        a:link
-                            color: black
-
-                        .label
-                            position: relative
-                            top: -1px
+                    .package
+                        margin-left: 2em
             |]
+
+viewLibrary ::
+       [( Entity Library
+        , Value Text
+        , Entity RepoVersion
+        , Value Text
+        , Value (Maybe Version))]
+    -> Widget
+viewLibrary byLibrary = do
+    let firstEntry = listToMaybe byLibrary
+    let repos =
+            Prelude.groupBy
+                (Prelude.on (==) $ \(_, Value gitUrl, _, _, _) -> gitUrl)
+                byLibrary
+    [whamlet|
+        $forall (Entity _ library, _, _, _, _) <- firstEntry
+            <div .library .#{elmVersionsForRepo byLibrary}>
+                <span .libraryName>
+                    #{libraryName library}
+                $forall byRepo <- repos
+                    <div>
+                        $forall (_, _, Entity _ rv, Value summary, Value elmVersion) <- byRepo
+                            <div .package .#{displayIfElmVersion elmVersion}>
+                                <a href="@{RepoVersionR (repoVersionRepo rv) (repoVersionTag rv)}">
+                                    <span .label.#{labelForVersion $ repoVersionVersion rv}>
+                                        #{(toText . repoVersionVersion) rv}
+                                    #{summary}
+                        $forall (_, Value gitUrl, Entity _ rv, _, _) <- listToMaybe byRepo
+                            <div .repo .#{elmVersionsForRepo byRepo}>
+                                <a href="@{RepoR $ repoVersionRepo rv}">
+                                    #{gitUrl}
+    |]
+
+elmVersionsForRepo :: [(a, b, c, d, Value (Maybe Version))] -> Text
+elmVersionsForRepo =
+    intercalate " " .
+    (fmap $ \(_, _, _, _, Value version) -> displayIfElmVersion version)
