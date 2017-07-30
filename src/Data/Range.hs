@@ -27,6 +27,20 @@ data Range a =
           (Bound a)
     deriving (Eq, Show)
 
+contains :: Ord a => Range a -> a -> Bool
+contains (Range lowerBound upperBound) v = initial && final
+  where
+    initial =
+        case lowerBound of
+            Inclusive a -> v >= a
+            Exclusive a -> v > a
+            Unspecified -> True
+    final =
+        case upperBound of
+            Inclusive a -> v <= a
+            Exclusive a -> v < a
+            Unspecified -> True
+
 -- | Parses the kind of version string you see in an elm-package.json
 -- |
 -- | So, something like `5.0.0 <= v < 6.0.1`
