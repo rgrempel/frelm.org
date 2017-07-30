@@ -360,8 +360,7 @@ getReposR = do
 
 elmVersionsForRepo :: [(a, b, c, Value (Maybe Version))] -> Text
 elmVersionsForRepo =
-    intercalate " " .
-    (fmap $ \(_, _, _, Value version) -> displayIfElmVersion version)
+    unwords . fmap (\(_, _, _, Value version) -> displayIfElmVersion version)
 
 postReposR :: Handler Html
 postReposR = do

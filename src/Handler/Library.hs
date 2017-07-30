@@ -142,5 +142,4 @@ viewLibrary byLibrary = do
 
 elmVersionsForRepo :: [(a, b, c, d, Value (Maybe Version))] -> Text
 elmVersionsForRepo =
-    intercalate " " .
-    (fmap $ \(_, _, _, _, Value version) -> displayIfElmVersion version)
+    unwords . fmap (\(_, _, _, _, Value version) -> displayIfElmVersion version)
