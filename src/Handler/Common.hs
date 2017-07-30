@@ -23,6 +23,10 @@ getFaviconR = do
         TypedContent "image/x-icon" $
         toContent $(embedFile "config/favicon.ico")
 
+getRobotsR :: Handler TypedContent
+getRobotsR =
+    return $ TypedContent typePlain $ toContent $(embedFile "config/robots.txt")
+
 versionToClass :: Maybe Version -> Text
 versionToClass Nothing = "ev-any"
 versionToClass (Just v) = "ev-" <> Data.Text.replace "." "-" (toText v)
