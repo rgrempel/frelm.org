@@ -9,9 +9,10 @@ module Handler.Module where
 
 import Data.ElmPackage
 import Data.PersistSemVer
-import Data.SemVer (toText)
+import Data.SemVer (Version, toText)
 import Database.Esqueleto
-import Import.App hiding (groupBy, on)
+import Handler.Common
+import Import.App hiding (Value, groupBy, on)
 import qualified Import.App as Prelude
 
 handle404 :: MonadHandler m => m [a] -> m a
@@ -58,28 +59,31 @@ getModulesR = do
     result <-
         fmap
             (Prelude.groupBy
-                 (Prelude.on (==) (\(moduleId, _, _, _) -> moduleId))) $
+                 (Prelude.on (==) (\(moduleId, _, _, _, _) -> moduleId))) $
         runDB $
         select $
-        from $ \(m `InnerJoin` pm `InnerJoin` p `InnerJoin` rv `InnerJoin` r) -> do
+        from $ \(m `InnerJoin` pm `InnerJoin` p `InnerJoin` rv `InnerJoin` (r `InnerJoin` rr)) -> do
+            on $ r ^. RepoId ==. rr ^. RepoRangeRepoId
             on $
                 (r ^. RepoId ==. rv ^. RepoVersionRepo) &&.
-                (just (rv ^. RepoVersionVersion) ==.
-                 sub_select
-                     (from $ \rv2 -> do
-                          where_ $ rv2 ^. RepoVersionRepo ==. r ^. RepoId
-                          pure $ max_ $ rv2 ^. RepoVersionVersion))
+                (rr ^. RepoRangeRepoVersion ==. just (rv ^. RepoVersionVersion))
             on $ p ^. PackageRepoVersion ==. rv ^. RepoVersionId
             on $ pm ^. PackageModuleRepoVersion ==. p ^. PackageRepoVersion
             on $ m ^. ModuleId ==. pm ^. PackageModuleModuleId
-            orderBy [asc $ m ^. ModuleName, desc $ rv ^. RepoVersionCommittedAt]
-            pure (m ^. ModuleId, m ^. ModuleName, r ^. RepoGitUrl, rv)
-    wrapper <- newIdent
+            orderBy [asc $ m ^. ModuleName, asc $ r ^. RepoGitUrl]
+            pure
+                ( m ^. ModuleId
+                , m ^. ModuleName
+                , r ^. RepoGitUrl
+                , rv
+                , rr ^. RepoRangeElmVersion)
+    moduleClass <- newIdent
+    moduleNameClass <- newIdent
     packageClass <- newIdent
     defaultLayout $ do
         setTitle "Elm Modules"
         [whamlet|
-            <div .container.#{wrapper}>
+            <div .container>
                 <div .row>
                     <p>
                         This is a list of all the Elm modules we know about,
@@ -89,29 +93,31 @@ getModulesR = do
                         re-named at some point. We'll work on filtering out old
                         names eventually. (In some cases, there really is more
                         than one package that implements a module).
+                <div .row .text-center>
+                    ^{elmVersionWidget}
                 <div .row>
                     <div .col-lg-12>
-                        <dl>
-                            $forall byModule <- result
-                                $forall (_, Value moduleName, _, _) <- listToMaybe byModule
-                                    <dt>#{moduleName}
-                                    <dd>
-                                        $forall (_, _, Value gitUrl, Entity _ rv) <- byModule
-                                            <div .#{packageClass}>
-                                                <a href="@{ModuleR (repoVersionRepo rv) (repoVersionTag rv) moduleName}">
-                                                    <span .label.#{labelForVersion $ repoVersionVersion rv}>
-                                                        #{(toText . repoVersionVersion) rv}
-                                                    #{fromMaybe gitUrl $ gitUrlToLibraryName gitUrl}
+                        $forall byModule <- result
+                            $forall (_, Value moduleName, _, _, _) <- listToMaybe byModule
+                                <div .#{moduleClass} .#{elmVersionsForRepo byModule}>
+                                    <div .#{moduleNameClass}>#{moduleName}
+                                    $forall (_, _, Value gitUrl, Entity _ rv, Value elmVersion) <- byModule
+                                        <div .#{packageClass} .#{displayIfElmVersion elmVersion}>
+                                            <a href="@{ModuleR (repoVersionRepo rv) (repoVersionTag rv) moduleName}">
+                                                <span .label.#{labelForVersion $ repoVersionVersion rv}>
+                                                    #{(toText . repoVersionVersion) rv}
+                                                #{fromMaybe gitUrl $ gitUrlToLibraryName gitUrl}
         |]
         toWidget
             [cassius|
-                .#{wrapper}
-                    dt
-                        margin-top: 0.5em
-                    dd
-                        margin-left: 2em
+                .#{moduleClass}
+                    margin-top: 0.5em
+
+                .#{moduleNameClass}
+                    font-weight: bold
 
                 .#{packageClass}
+                    margin-left: 2em
                     margin-bottom: 0.2em
 
                     a:link, a:visited
@@ -121,3 +127,7 @@ getModulesR = do
                         position: relative
                         top: -1px
             |]
+
+elmVersionsForRepo :: [(a, b, c, d, Value (Maybe Version))] -> Text
+elmVersionsForRepo =
+    unwords . fmap (\(_, _, _, _, Value version) -> displayIfElmVersion version)
