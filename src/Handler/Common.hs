@@ -13,8 +13,10 @@ import Data.FileEmbed (embedFile)
 import Data.List (nub)
 import Data.Range
 import Data.SemVer (Version, fromText, toText)
+import Data.Time.Clock
 import Database.Esqueleto
 import Import.App hiding (Value, on)
+import Web.Cookie
 
 -- These handlers embed files in the executable at compile time to avoid a
 -- runtime dependency, and for efficiency.
@@ -30,20 +32,53 @@ getRobotsR =
     return $ TypedContent typePlain $ toContent $(embedFile "config/robots.txt")
 
 toParams :: Maybe Version -> [(Text, Text)]
-toParams Nothing = []
+toParams Nothing = [("ev", "all")]
 toParams (Just v) = [("ev", toText v)]
 
-lookupRequestedElmVersion :: MonadHandler m => m (Maybe Version)
+cookieLife :: DiffTime
+cookieLife = 60 * 60 * 24 * 365
+
+setElmVersionCookie :: MonadHandler m => Text -> m ()
+setElmVersionCookie ev =
+    setCookie $
+    def
+    { setCookieName = "ev"
+    , setCookieValue = encodeUtf8 ev
+    , setCookiePath = Just "/"
+    , setCookieMaxAge = Just cookieLife
+    }
+
+{- | Looks up the "ev" param in the URL. If it is set, we also
+set a cookie. We only use the cookie if you don't supply
+the param. So, basically, we use the cookie to redirect if
+you don't supply the param.
+-}
+lookupRequestedElmVersion :: Handler (Maybe Version)
 lookupRequestedElmVersion = do
-    ev <- fmap fromText <$> lookupGetParam "ev"
-    case ev of
-        Just (Left _) -> notFound
-        Just (Right v) -> pure (Just v)
-        Nothing -> pure Nothing
+    evParam <- lookupGetParam "ev"
+    currentRoute <- fromMaybe HomeR <$> getCurrentRoute
+    if evParam == Just "all"
+        then do
+            setElmVersionCookie "all"
+            pure Nothing
+        else case fromText <$> evParam of
+                 Just (Left err) ->
+                     invalidArgs
+                         ["The 'ev' param could not be interpreted.", pack err]
+                 Just (Right v) -> do
+                     setElmVersionCookie (toText v)
+                     pure (Just v)
+                 Nothing -> do
+                     evCookie <- fmap fromText <$> lookupCookie "ev"
+                     case evCookie of
+                         Just (Right v) ->
+                             redirect (currentRoute, [("ev", toText v)])
+                         _ -> pure ()
+                     pure Nothing
 
 elmVersionWidget :: Widget
 elmVersionWidget = do
-    requestedElmVersion <- lookupRequestedElmVersion
+    requestedElmVersion <- handlerToWidget lookupRequestedElmVersion
     currentRoute <- fromMaybe HomeR <$> getCurrentRoute
     renderUrl <- getUrlRenderParams
     standardVersions <-
@@ -51,6 +86,7 @@ elmVersionWidget = do
         runDB $ select $ from (\v -> pure $ v ^. ElmVersionVersion)
     let versions = nub $ sort $ Value requestedElmVersion : standardVersions
     wrapper <- newIdent
+    labelButton <- newIdent
     let buttonColorForVersion v =
             if v == requestedElmVersion
                 then "btn-primary" :: Text
@@ -61,10 +97,10 @@ elmVersionWidget = do
                 else renderUrl currentRoute $ toParams v
     [whamlet|
         <div class="btn-group" role="group" aria-label="Choose Elm Version" .#{wrapper}>
-            <button type="button" .btn.btn-xs.btn-success>
+            <button type="button" .btn.btn-xs.btn-success .#{labelButton}>
                 Elm Version
             $forall Value v <- versions
-                <a type="button" href="#{hrefForVersion v}" .btn.btn-xs .#{buttonColorForVersion v}>
+                <button type="button" data-href="#{hrefForVersion v}" .btn.btn-xs .#{buttonColorForVersion v}>
                     $case v
                         $of Just vers
                             #{toText vers}
@@ -72,12 +108,22 @@ elmVersionWidget = do
                             All
     |]
     toWidget
+        [julius|
+            (function (wrapper) {
+                $("." + wrapper + " button[data-href]").click(function () {
+                    var href = $(this).attr('data-href');
+                    if (href) window.location = href;
+                });
+            })(#{toJSON wrapper});
+        |]
+    toWidget
         [cassius|
             .#{wrapper}
                 button
-                    pointer-events: none
-                a
                     min-width: 3.5em
+
+            .#{labelButton}
+                pointer-events: none
         |]
 
 maxRepoVersion ::
