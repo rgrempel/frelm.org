@@ -27,10 +27,6 @@ getFaviconR = do
         TypedContent "image/x-icon" $
         toContent $(embedFile "config/favicon.ico")
 
-getRobotsR :: Handler TypedContent
-getRobotsR =
-    return $ TypedContent typePlain $ toContent $(embedFile "config/robots.txt")
-
 toParams :: Maybe Version -> [(Text, Text)]
 toParams Nothing = [("ev", "all")]
 toParams (Just v) = [("ev", toText v)]

@@ -12,10 +12,8 @@ import Database.Esqueleto
 import Import.App hiding (on)
 import Yesod.Sitemap
 
-{-
 getRobotsR :: Handler TypedContent
 getRobotsR = (TypedContent typePlain . toContent) <$> robots SitemapR
--}
 
 getSitemapR :: Handler TypedContent
 getSitemapR =
