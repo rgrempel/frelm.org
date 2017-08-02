@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -7,7 +8,7 @@
 module Data.Range where
 
 import ClassyPrelude hiding ((<|>))
-import Database.Esqueleto (Value)
+import Database.Esqueleto
 import Database.Esqueleto.Internal.Sql
 import Database.Persist (PersistValue(..))
 import Text.Parsec
@@ -15,6 +16,22 @@ import Text.Parsec
 valueInRange ::
        SqlExpr (Value a) -> SqlExpr (Value (Range a)) -> SqlExpr (Value Bool)
 valueInRange = unsafeSqlBinOp " <@ "
+
+{- | We specialize the second parameter to a `Maybe`, and we construct a range
+     from the first parameter, since Postgres seems to assume a range for a literal
+     unless we give an explicit type, which I can't figure out how to do.
+-}
+justValueInRange ::
+       PersistField (Range a)
+    => Maybe a
+    -> SqlExpr (Value (Maybe (Range a)))
+    -> SqlExpr (Value Bool)
+justValueInRange value rangeExpr =
+    case value of
+        Nothing -> val True
+        Just v ->
+            let valueAsRange = val $ Range (Inclusive v) (Inclusive v)
+            in unsafeSqlBinOp " <@ " valueAsRange rangeExpr
 
 data Bound a
     = Inclusive a

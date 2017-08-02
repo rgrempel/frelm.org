@@ -8,42 +8,37 @@
 module Handler.Recent where
 
 import Data.ElmPackage
-import Data.List (nub)
 import Data.PersistSemVer
 import Data.Range
 import Data.SemVer
 import Data.Time.Calendar (showGregorian)
 import Database.Esqueleto
 import Handler.Common
-import Import.App hiding (Value, on)
+import Import.App hiding (Value, isNothing, on)
 import qualified Import.App as Prelude
 
 getRecentR :: Handler Html
 getRecentR = do
-    (result, elmVersions) <-
+    elmVersion <- lookupRequestedElmVersion
+    result <-
         runDB $ do
             result <-
                 fmap
                     (Prelude.groupBy
                          (Prelude.on
                               (==)
-                              (\(Entity _ rv, _, _, _) ->
+                              (\(Entity _ rv, _, _) ->
                                    (utctDay . repoVersionCommittedAt) rv))) $
                 select $
-                from $ \(repoVersion `InnerJoin` package `InnerJoin` repo) -> do
-                    on $ repoVersion ^. RepoVersionRepo ==. repo ^. RepoId
-                    on $
-                        repoVersion ^. RepoVersionId ==. package ^.
-                        PackageRepoVersion
-                    orderBy [desc $ repoVersion ^. RepoVersionCommittedAt]
+                from $ \(r `InnerJoin` rv `InnerJoin` p) -> do
+                    on $ rv ^. RepoVersionId ==. p ^. PackageRepoVersion
+                    on $ r ^. RepoId ==. rv ^. RepoVersionRepo
+                    where_ $
+                        justValueInRange elmVersion (p ^. PackageElmVersion)
+                    orderBy [desc $ rv ^. RepoVersionCommittedAt]
                     limit 1000
-                    pure
-                        ( repoVersion
-                        , package ^. PackageSummary
-                        , repo ^. RepoGitUrl
-                        , package ^. PackageElmVersion)
-            elmVersions <- select $ from $ \ev -> pure $ ev ^. ElmVersionVersion
-            pure (result, elmVersions)
+                    pure (rv, p ^. PackageSummary, r ^. RepoGitUrl)
+            pure result
     packageClass <- newIdent
     packageSummaryClass <- newIdent
     libraryNameClass <- newIdent
@@ -71,11 +66,11 @@ getRecentR = do
                 <div .row>
                     <div .col-lg-12>
                         $forall byDay <- result
-                            <div .ev-display.#{dayClass}.#{considerDayElmVersions elmVersions byDay}>
-                                $forall (Entity _ rvHead, _, _, _) <- listToMaybe byDay
+                            <div .ev-display.#{dayClass}>
+                                $forall (Entity _ rvHead, _, _) <- listToMaybe byDay
                                     <span .#{dayNameClass}>#{showGregorian $ utctDay $ repoVersionCommittedAt rvHead}
-                                    $forall (Entity _ rv, Value summary, Value gitUrl, Value elmVersionRange) <- byDay
-                                        <div .#{packageClass} .ev-display.#{considerElmVersions elmVersions elmVersionRange}>
+                                    $forall (Entity _ rv, Value summary, Value gitUrl) <- byDay
+                                        <div .#{packageClass}>
                                             <span .#{libraryNameClass}>
                                                 <a href="@{RepoVersionR (repoVersionRepo rv) (repoVersionTag rv)}">
                                                     #{fromMaybe gitUrl (gitUrlToLibraryName gitUrl)}
@@ -110,31 +105,3 @@ getRecentR = do
                     font-size: 110%
                     font-weight: bold
             |]
-
-considerElmVersions :: [Value (Maybe Version)] -> Maybe (Range Version) -> Text
-considerElmVersions elmVersions range = unwords $ catMaybes versionList
-  where
-    versionList =
-        case range of
-            Nothing -> [Just $ versionToClass Nothing]
-            Just r ->
-                fmap
-                    (\(Value vers) ->
-                         case vers of
-                             Nothing -> Just $ versionToClass Nothing
-                             Just v ->
-                                 if contains r v
-                                     then Just $ versionToClass (Just v)
-                                     else Nothing)
-                    elmVersions
-
-considerDayElmVersions ::
-       [Value (Maybe Version)]
-    -> [(a, b, c, Value (Maybe (Range Version)))]
-    -> Text
-considerDayElmVersions elmVersions ranges =
-    unwords $
-    nub $
-    fmap
-        (considerElmVersions elmVersions . (\(_, _, _, Value vers) -> vers))
-        ranges

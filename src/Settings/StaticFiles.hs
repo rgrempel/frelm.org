@@ -1,6 +1,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell   #-}
+{-# LANGUAGE TemplateHaskell #-}
+
 module Settings.StaticFiles where
 
 import Settings.App (appStaticDir, compileTimeAppSettings)
@@ -18,19 +19,19 @@ import Yesod.Static (staticFilesList)
 -- If the identifier is not available, you may use:
 --
 --     StaticFile ["js", "script.js"] []
-staticFilesList (appStaticDir compileTimeAppSettings)
+staticFilesList
+    (appStaticDir compileTimeAppSettings)
     [ "bower_components/jquery/dist/jquery.min.js"
     , "bower_components/bootstrap/dist/css/bootstrap.min.css"
     , "bower_components/bootstrap/dist/css/bootstrap-theme.min.css"
     , "bower_components/bootstrap/dist/js/bootstrap.min.js"
     , "bower_components/bootstrap/dist/fonts/glyphicons-halflings-regular.eot"
-    , "bower_components/bootstrap/dist/fonts/glyphicons-halflings-regular.svg" 
+    , "bower_components/bootstrap/dist/fonts/glyphicons-halflings-regular.svg"
     , "bower_components/bootstrap/dist/fonts/glyphicons-halflings-regular.ttf"
     , "bower_components/bootstrap/dist/fonts/glyphicons-halflings-regular.woff"
     , "bower_components/bootstrap/dist/fonts/glyphicons-halflings-regular.woff2"
     , "highlight-js/highlight.pack.js"
     , "highlight-js/styles/tomorrow.css"
     , "scripts/init-highlight-js.js"
-    , "scripts/version-button.js"
     , "css/highlight-js.css"
     ]

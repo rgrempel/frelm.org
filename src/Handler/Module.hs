@@ -9,10 +9,10 @@ module Handler.Module where
 
 import Data.ElmPackage
 import Data.PersistSemVer
-import Data.SemVer (Version, toText)
+import Data.SemVer (toText)
 import Database.Esqueleto
 import Handler.Common
-import Import.App hiding (Value, groupBy, on)
+import Import.App hiding (Value, groupBy, isNothing, on)
 import qualified Import.App as Prelude
 
 handle404 :: MonadHandler m => m [a] -> m a
@@ -56,27 +56,22 @@ getModuleR repoId tag module_ = do
 
 getModulesR :: Handler Html
 getModulesR = do
+    elmVersion <- lookupRequestedElmVersion
     result <-
         fmap
             (Prelude.groupBy
-                 (Prelude.on (==) (\(moduleId, _, _, _, _) -> moduleId))) $
+                 (Prelude.on (==) (\(moduleId, _, _, _) -> moduleId))) $
         runDB $
         select $
-        from $ \(m `InnerJoin` pm `InnerJoin` p `InnerJoin` rv `InnerJoin` (r `InnerJoin` rr)) -> do
-            on $ r ^. RepoId ==. rr ^. RepoRangeRepoId
+        from $ \(r `InnerJoin` rv `InnerJoin` p `InnerJoin` pm `InnerJoin` m) -> do
+            on $ m ^. ModuleId ==. pm ^. PackageModuleModuleId
+            on $ pm ^. PackageModuleRepoVersion ==. p ^. PackageRepoVersion
+            on $ p ^. PackageRepoVersion ==. rv ^. RepoVersionId
             on $
                 (r ^. RepoId ==. rv ^. RepoVersionRepo) &&.
-                (rr ^. RepoRangeRepoVersion ==. just (rv ^. RepoVersionVersion))
-            on $ p ^. PackageRepoVersion ==. rv ^. RepoVersionId
-            on $ pm ^. PackageModuleRepoVersion ==. p ^. PackageRepoVersion
-            on $ m ^. ModuleId ==. pm ^. PackageModuleModuleId
+                (just (rv ^. RepoVersionVersion) ==. maxRepoVersion elmVersion r)
             orderBy [asc $ m ^. ModuleName, asc $ r ^. RepoGitUrl]
-            pure
-                ( m ^. ModuleId
-                , m ^. ModuleName
-                , r ^. RepoGitUrl
-                , rv
-                , rr ^. RepoRangeElmVersion)
+            pure (m ^. ModuleId, m ^. ModuleName, r ^. RepoGitUrl, rv)
     moduleClass <- newIdent
     moduleNameClass <- newIdent
     packageClass <- newIdent
@@ -98,11 +93,11 @@ getModulesR = do
                 <div .row>
                     <div .col-lg-12>
                         $forall byModule <- result
-                            $forall (_, Value moduleName, _, _, _) <- listToMaybe byModule
-                                <div .#{moduleClass} .#{elmVersionsForRepo byModule}>
+                            $forall (_, Value moduleName, _, _) <- listToMaybe byModule
+                                <div .#{moduleClass}>
                                     <div .#{moduleNameClass}>#{moduleName}
-                                    $forall (_, _, Value gitUrl, Entity _ rv, Value elmVersion) <- byModule
-                                        <div .#{packageClass} .#{displayIfElmVersion elmVersion}>
+                                    $forall (_, _, Value gitUrl, Entity _ rv) <- byModule
+                                        <div .#{packageClass}>
                                             <a href="@{ModuleR (repoVersionRepo rv) (repoVersionTag rv) moduleName}">
                                                 <span .label.#{labelForVersion $ repoVersionVersion rv}>
                                                     #{(toText . repoVersionVersion) rv}
@@ -127,7 +122,3 @@ getModulesR = do
                         position: relative
                         top: -1px
             |]
-
-elmVersionsForRepo :: [(a, b, c, d, Value (Maybe Version))] -> Text
-elmVersionsForRepo =
-    unwords . fmap (\(_, _, _, _, Value version) -> displayIfElmVersion version)

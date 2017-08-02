@@ -10,7 +10,7 @@ module Handler.Repo where
 import Cheapskate hiding (Entity)
 import Data.PersistSemVer
 import Data.Range
-import Data.SemVer (Version, toText)
+import Data.SemVer (toText)
 import Database.Esqueleto
 import Handler.Common
 import Import.App hiding (Value, groupBy, on)
@@ -260,21 +260,21 @@ submissionForm =
 
 getReposR :: Handler Html
 getReposR = do
+    elmVersion <- lookupRequestedElmVersion
     (widget, enctype) <- generateFormPost submissionForm
     repos <-
         fmap
             (Prelude.groupBy
-                 (Prelude.on (==) (\(Entity repoId _, _, _, _) -> repoId))) $
+                 (Prelude.on (==) (\(Entity repoId _, _, _) -> repoId))) $
         runDB $
         select $
-        from $ \((r `InnerJoin` rr) `LeftOuterJoin` rv `LeftOuterJoin` p) -> do
+        from $ \(r `LeftOuterJoin` rv `LeftOuterJoin` p) -> do
             on $ rv ?. RepoVersionId ==. p ?. PackageRepoVersion
             on $
                 (just (r ^. RepoId) ==. rv ?. RepoVersionRepo) &&.
-                (rr ^. RepoRangeRepoVersion ==. rv ?. RepoVersionVersion)
-            on $ r ^. RepoId ==. rr ^. RepoRangeRepoId
+                (rv ?. RepoVersionVersion ==. maxRepoVersion elmVersion r)
             orderBy [asc $ r ^. RepoGitUrl]
-            pure (r, rv, p ?. PackageSummary, rr ^. RepoRangeElmVersion)
+            pure (r, rv, p ?. PackageSummary)
     isLoggedIn <- isJust <$> maybeAuth
     repoClass <- newIdent
     versionClass <- newIdent
@@ -322,19 +322,22 @@ getReposR = do
                 <div .row>
                     <div .col-lg-12 .#{listClass}>
                         $forall byRepo <- repos
-                            $forall (Entity repoId repo, _, _, _) <- listToMaybe byRepo
-                                <div .#{repoClass}.#{elmVersionsForRepo byRepo}>
-                                    <a href=@{RepoR repoId} .#{repoNameClass}>
-                                        #{repoGitUrl repo}
-                                    $forall (_, version, Value summary, Value elmVersion) <- byRepo
-                                        $forall Entity _ v <- version
-                                            <div .#{versionClass} .#{displayIfElmVersion elmVersion}>
-                                                <a href="@{RepoVersionR (repoVersionRepo v) (repoVersionTag v)}">
-                                                    <span .label.#{labelForVersion $ repoVersionVersion v}>
-                                                        #{toText $ repoVersionVersion v}
-                                                $forall s <- summary
+                            $forall (Entity repoId repo, rv, _) <- listToMaybe byRepo
+                                $if Prelude.isJust rv || Prelude.isNothing elmVersion
+                                    <div .#{repoClass}>
+                                        <a href=@{RepoR repoId} .#{repoNameClass}>
+                                            #{repoGitUrl repo}
+                                        $forall (_, version, Value summary) <- byRepo
+                                            $forall Entity _ v <- version
+                                                <div .#{versionClass}>
                                                     <a href="@{RepoVersionR (repoVersionRepo v) (repoVersionTag v)}">
-                                                        #{s}
+                                                        <span .label.#{labelForVersion $ repoVersionVersion v}>
+                                                            #{toText $ repoVersionVersion v}
+                                                    $forall s <- summary
+                                                        <a href="@{RepoVersionR (repoVersionRepo v) (repoVersionTag v)}">
+                                                            #{s}
+                                $else
+                                    <span>
         |]
         toWidget
             [cassius|
@@ -357,10 +360,6 @@ getReposR = do
                         position: relative
                         top: -1px
             |]
-
-elmVersionsForRepo :: [(a, b, c, Value (Maybe Version))] -> Text
-elmVersionsForRepo =
-    unwords . fmap (\(_, _, _, Value version) -> displayIfElmVersion version)
 
 postReposR :: Handler Html
 postReposR = do

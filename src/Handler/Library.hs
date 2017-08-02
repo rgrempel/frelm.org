@@ -9,10 +9,10 @@
 module Handler.Library where
 
 import Data.PersistSemVer
-import Data.SemVer (Version, toText)
+import Data.SemVer (toText)
 import Database.Esqueleto
 import Handler.Common
-import Import.App hiding (Value, on)
+import Import.App hiding (Value, isNothing, on)
 import qualified Import.App as Prelude
 
 -- | What we want to "get" here is every library, along with some sense
@@ -24,28 +24,21 @@ import qualified Import.App as Prelude
 -- repositories page where you can see a list of repositories.
 getLibrariesR :: Handler Html
 getLibrariesR = do
+    elmVersion <- lookupRequestedElmVersion
     result <-
         fmap
             (Prelude.groupBy
-                 (Prelude.on
-                      (==)
-                      (\(Entity libraryId _, _, _, _, _) -> libraryId))) $
+                 (Prelude.on (==) (\(Entity libraryId _, _, _, _) -> libraryId))) $
         runDB $
         select $
-        from $ \(r `InnerJoin` rr `InnerJoin` rv `InnerJoin` p `InnerJoin` l) -> do
+        from $ \(r `InnerJoin` rv `InnerJoin` p `InnerJoin` l) -> do
             on $ p ^. PackageLibrary ==. just (l ^. LibraryId)
             on $ rv ^. RepoVersionId ==. (p ^. PackageRepoVersion)
             on $
                 (r ^. RepoId ==. rv ^. RepoVersionRepo) &&.
-                (rr ^. RepoRangeRepoVersion ==. just (rv ^. RepoVersionVersion))
-            on $ r ^. RepoId ==. rr ^. RepoRangeRepoId
+                (just (rv ^. RepoVersionVersion) ==. maxRepoVersion elmVersion r)
             orderBy [asc $ l ^. LibraryName, asc $ r ^. RepoGitUrl]
-            pure
-                ( l
-                , r ^. RepoGitUrl
-                , rv
-                , p ^. PackageSummary
-                , rr ^. RepoRangeElmVersion)
+            pure (l, r ^. RepoGitUrl, rv, p ^. PackageSummary)
     wrapper <- newIdent
     defaultLayout $ do
         setTitle "Elm Libraries"
@@ -109,37 +102,22 @@ getLibrariesR = do
             |]
 
 viewLibrary ::
-       [( Entity Library
-        , Value Text
-        , Entity RepoVersion
-        , Value Text
-        , Value (Maybe Version))]
-    -> Widget
+       [(Entity Library, Value Text, Entity RepoVersion, Value Text)] -> Widget
 viewLibrary byLibrary = do
     let firstEntry = listToMaybe byLibrary
-    let repos =
-            Prelude.groupBy
-                (Prelude.on (==) $ \(_, Value gitUrl, _, _, _) -> gitUrl)
-                byLibrary
     [whamlet|
-        $forall (Entity _ library, _, _, _, _) <- firstEntry
-            <div .library .#{elmVersionsForRepo byLibrary}>
+        $forall (Entity _ library, _, _, _) <- firstEntry
+            <div .library>
                 <span .libraryName>
                     #{libraryName library}
-                $forall byRepo <- repos
+                $forall (_, Value gitUrl, Entity _ rv, Value summary) <- byLibrary
                     <div>
-                        $forall (_, _, Entity _ rv, Value summary, Value elmVersion) <- byRepo
-                            <div .package .#{displayIfElmVersion elmVersion}>
-                                <a href="@{RepoVersionR (repoVersionRepo rv) (repoVersionTag rv)}">
-                                    <span .label.#{labelForVersion $ repoVersionVersion rv}>
-                                        #{(toText . repoVersionVersion) rv}
-                                    #{summary}
-                        $forall (_, Value gitUrl, Entity _ rv, _, _) <- listToMaybe byRepo
-                            <div .repo .#{elmVersionsForRepo byRepo}>
-                                <a href="@{RepoR $ repoVersionRepo rv}">
-                                    #{gitUrl}
+                        <div .package>
+                            <a href="@{RepoVersionR (repoVersionRepo rv) (repoVersionTag rv)}">
+                                <span .label.#{labelForVersion $ repoVersionVersion rv}>
+                                    #{(toText . repoVersionVersion) rv}
+                                #{summary}
+                        <div .repo>
+                            <a href="@{RepoR $ repoVersionRepo rv}">
+                                #{gitUrl}
     |]
-
-elmVersionsForRepo :: [(a, b, c, d, Value (Maybe Version))] -> Text
-elmVersionsForRepo =
-    unwords . fmap (\(_, _, _, _, Value version) -> displayIfElmVersion version)
