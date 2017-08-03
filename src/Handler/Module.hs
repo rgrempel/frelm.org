@@ -11,6 +11,7 @@ import Data.ElmPackage
 import Data.PersistSemVer
 import Data.SemVer (toText)
 import Database.Esqueleto
+import ElmFormat.Parse (parse)
 import Handler.Common
 import Import.App hiding (Value, groupBy, isNothing, on)
 import qualified Import.App as Prelude
@@ -44,6 +45,8 @@ getModuleR repoId tag module_ = do
                 , r ^. RepoGitUrl
                 , m ^. ModuleName
                 , rv ^. RepoVersionVersion)
+    docsTab <- newIdent
+    sourceTab <- newIdent
     defaultLayout $ do
         addStylesheet $ StaticR highlight_js_styles_tomorrow_css
         addStylesheet $ StaticR css_highlight_js_css
@@ -55,14 +58,29 @@ getModuleR repoId tag module_ = do
             modName <> " (" <> repoName <> " " <> toText version <> ")"
         [whamlet|
             <div .container>
-                <div .row>
-                    <div .col-lg-12>
-                        $forall source <- packageModuleSource pm
+                $maybe source <- packageModuleSource pm
+                    <div .row>
+                        <div .col-lg-12>
                             <div .alert.alert-success>
                                 License: #{license}
-                            <pre .elm>
-                                <code>
-                                    #{source}
+                    <div .row>
+                        <div .col-lg-12>
+                            <ul .nav.nav-tabs role="tablist">
+                                <li role="presentation" class="active">
+                                    <a href="##{docsTab}" aria-controls="#{docsTab}" role="tab" data-toggle="tab">
+                                        Docs
+                                <li role="presentation">
+                                    <a href="##{sourceTab}" aria-controls="#{sourceTab}" role="tab" data-toggle="tab">
+                                        Source
+                            <div .tab-content>
+                                <div ##{docsTab} .tab-pane.active role="tabpanel">
+                                    <pre>
+                                        <code>
+                                            #{tshow $ parse source}
+                                <div ##{sourceTab} .tab-pane role="tabpanel">
+                                    <pre .elm>
+                                        <code>
+                                            #{source}
         |]
 
 getModulesR :: Handler Html
