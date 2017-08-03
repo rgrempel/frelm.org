@@ -13,7 +13,7 @@ getHomeR = do
     masthead <- newIdent
     docs <- newIdent
     defaultLayout $ do
-        setTitle "Welcome to Frelm!"
+        setTitle "Frelm: Alternative package discovery for Elm"
         toWidget
             [hamlet|
                 <div .container .#{masthead}>

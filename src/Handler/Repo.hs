@@ -8,6 +8,7 @@
 module Handler.Repo where
 
 import Cheapskate hiding (Entity)
+import Data.ElmPackage
 import Data.PersistSemVer
 import Data.Range
 import Data.SemVer (toText)
@@ -15,17 +16,24 @@ import Database.Esqueleto
 import Handler.Common
 import Import.App hiding (Value, groupBy, on)
 import qualified Import.App as Prelude
+import Text.Blaze (toMarkup)
 
 getRepoR :: RepoId -> Handler Html
 getRepoR repoId = do
-    versions <-
-        runDB $
-        select $
-        from $ \version -> do
-            where_ $ version ^. RepoVersionRepo ==. val repoId
-            orderBy [desc $ version ^. RepoVersionVersion]
-            pure version
-    defaultLayout
+    (versions, repo) <-
+        runDB $ do
+            repo <- get404 repoId
+            versions <-
+                select $
+                from $ \version -> do
+                    where_ $ version ^. RepoVersionRepo ==. val repoId
+                    orderBy [desc $ version ^. RepoVersionVersion]
+                    pure version
+            pure (versions, repo)
+    defaultLayout $ do
+        setTitle $
+            toMarkup $
+            fromMaybe (repoGitUrl repo) $ gitUrlToLibraryName $ repoGitUrl repo
         [whamlet|
             <div .container>
                 <div .row>
@@ -54,22 +62,23 @@ handle404 =
 
 getRepoVersionR :: RepoId -> Text -> Handler Html
 getRepoVersionR repoId tag = do
-    (v, pc, p, modules, dependencies) <-
+    (r, v, pc, p, modules, dependencies) <-
         runDB $ do
-            (v, pc, p) <-
+            (r, v, pc, p) <-
                 handle404 $
                 select $
-                from $ \(v `LeftOuterJoin` pc `LeftOuterJoin` p) -> do
+                from $ \(r `InnerJoin` v `LeftOuterJoin` pc `LeftOuterJoin` p) -> do
                     on $
                         pc ?. PackageCheckRepoVersion ==. p ?.
                         PackageRepoVersion
                     on $
                         just (v ^. RepoVersionId) ==. pc ?.
                         PackageCheckRepoVersion
+                    on $ v ^. RepoVersionRepo ==. r ^. RepoId
                     where_ $
                         (v ^. RepoVersionRepo ==. val repoId) &&.
                         (v ^. RepoVersionTag ==. val tag)
-                    pure (v, pc, p)
+                    pure (r, v, pc, p)
             modules <-
                 select $
                 from $ \(pm `InnerJoin` m) -> do
@@ -102,8 +111,14 @@ getRepoVersionR repoId tag = do
                     on $ d ^. DependencyLibrary ==. l ^. LibraryId
                     where_ $ d ^. DependencyRepoVersion ==. val (entityKey v)
                     pure (d, l, depRepo, depVersion)
-            pure (v, pc, p, modules, dependencies)
-    defaultLayout
+            pure (r, v, pc, p, modules, dependencies)
+    defaultLayout $ do
+        let repoName =
+                fromMaybe (repoGitUrl $ entityVal r) $
+                gitUrlToLibraryName $ repoGitUrl (entityVal r)
+        setTitle $
+            toMarkup $
+            repoName <> " " <> (toText . repoVersionVersion . entityVal) v
         [whamlet|
             <div .container>
                 <div .row>

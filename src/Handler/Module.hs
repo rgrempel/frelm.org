@@ -14,6 +14,7 @@ import Database.Esqueleto
 import Handler.Common
 import Import.App hiding (Value, groupBy, isNothing, on)
 import qualified Import.App as Prelude
+import Text.Blaze (toMarkup)
 
 handle404 :: MonadHandler m => m [a] -> m a
 handle404 =
@@ -24,24 +25,34 @@ handle404 =
 
 getModuleR :: RepoId -> Text -> Text -> Handler Html
 getModuleR repoId tag module_ = do
-    (Entity _ pm, Value license) <-
+    (Entity _ pm, Value license, Value gitUrl, Value modName, Value version) <-
         runDB $
         handle404 $
         select $
-        from $ \(rv `InnerJoin` pm `InnerJoin` m `InnerJoin` p) -> do
+        from $ \(r `InnerJoin` rv `InnerJoin` pm `InnerJoin` m `InnerJoin` p) -> do
             on $ pm ^. PackageModuleRepoVersion ==. p ^. PackageRepoVersion
             on $ pm ^. PackageModuleModuleId ==. m ^. ModuleId
             on $ pm ^. PackageModuleRepoVersion ==. rv ^. RepoVersionId
+            on $ rv ^. RepoVersionRepo ==. r ^. RepoId
             where_ $
                 (rv ^. RepoVersionRepo ==. val repoId) &&.
                 (rv ^. RepoVersionTag ==. val tag) &&.
                 (m ^. ModuleName ==. val module_)
-            pure (pm, p ^. PackageLicense)
+            pure
+                ( pm
+                , p ^. PackageLicense
+                , r ^. RepoGitUrl
+                , m ^. ModuleName
+                , rv ^. RepoVersionVersion)
     defaultLayout $ do
         addStylesheet $ StaticR highlight_js_styles_tomorrow_css
         addStylesheet $ StaticR css_highlight_js_css
         addScript $ StaticR highlight_js_highlight_pack_js
         addScript $ StaticR scripts_init_highlight_js_js
+        let repoName = fromMaybe gitUrl $ gitUrlToLibraryName gitUrl
+        setTitle $
+            toMarkup $
+            modName <> " (" <> repoName <> " " <> toText version <> ")"
         [whamlet|
             <div .container>
                 <div .row>

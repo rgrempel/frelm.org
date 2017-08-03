@@ -45,7 +45,7 @@ getRecentR = do
     dayClass <- newIdent
     dayNameClass <- newIdent
     defaultLayout $ do
-        setTitle "Recent Elm Modules"
+        setTitle "Recent Elm Packages"
         [whamlet|
             <div .container>
                 <div .row>

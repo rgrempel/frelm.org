@@ -62,6 +62,7 @@ dependencies:
 - network-uri
 - iso8601-time
 - blaze-html
+- blaze-markup
 - yesod-persistent
 - yesod-newsfeed
 - http-types
