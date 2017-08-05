@@ -73,12 +73,17 @@ dependencies:
 - cheapskate
 - yesod-sitemap
 - cookie
-- elm-format
+- mtl
+- split
+- ansi-terminal
+- indents
 
 # The library contains all of our application code. The executable
 # defined below is just a thin wrapper.
 library:
-  source-dirs: src
+  source-dirs:
+    - src
+    - vendor/elm-format/parser/src
   when:
   - condition: (flag(dev)) || (flag(library-only))
     then:

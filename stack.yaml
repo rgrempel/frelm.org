@@ -40,10 +40,6 @@ compiler: ghc-8.0.2
 # will not be run. This is useful for tweaking upstream packages.
 packages:
 - '.'
-- location:
-    git: git://github.com/avh4/elm-format.git
-    commit: 24cbc66245289dd3ca5c08a14e86358dc039fcf3
-  extra-dep: true
 
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)

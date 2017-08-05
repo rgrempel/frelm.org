@@ -7,14 +7,19 @@
 
 module Handler.Module where
 
+import qualified AST.Module as ElmModule
+import Cheapskate.Html
+import qualified Cheapskate.Types as Markdown
 import Data.ElmPackage
 import Data.PersistSemVer
 import Data.SemVer (toText)
 import Database.Esqueleto
-import ElmFormat.Parse (parse)
 import Handler.Common
 import Import.App hiding (Value, groupBy, isNothing, on)
 import qualified Import.App as Prelude
+import Parse.Helpers (iParse)
+import Parse.Module (elmModule)
+import Reporting.Annotation
 import Text.Blaze (toMarkup)
 
 handle404 :: MonadHandler m => m [a] -> m a
@@ -61,10 +66,6 @@ getModuleR repoId tag module_ = do
                 $maybe source <- packageModuleSource pm
                     <div .row>
                         <div .col-lg-12>
-                            <div .alert.alert-success>
-                                License: #{license}
-                    <div .row>
-                        <div .col-lg-12>
                             <ul .nav.nav-tabs role="tablist">
                                 <li role="presentation" class="active">
                                     <a href="##{docsTab}" aria-controls="#{docsTab}" role="tab" data-toggle="tab">
@@ -72,16 +73,47 @@ getModuleR repoId tag module_ = do
                                 <li role="presentation">
                                     <a href="##{sourceTab}" aria-controls="#{sourceTab}" role="tab" data-toggle="tab">
                                         Source
+                                <li>
+                                    <span .label.label-success>
+                                        #{license}
                             <div .tab-content>
                                 <div ##{docsTab} .tab-pane.active role="tabpanel">
-                                    <pre>
-                                        <code>
-                                            #{tshow $ parse source}
+                                    ^{viewDocs modName source}
                                 <div ##{sourceTab} .tab-pane role="tabpanel">
                                     <pre .elm>
                                         <code>
                                             #{source}
         |]
+
+viewDocs :: Text -> Text -> Widget
+viewDocs modName source = do
+    let parsed = iParse elmModule (unpack source)
+    case parsed of
+        Left err ->
+            [whamlet|
+                <h3>Error
+                #{tshow err}
+            |]
+        Right (ElmModule.Module _ _ (A _ docs) _ _) ->
+            case docs of
+                Nothing ->
+                    [whamlet|
+                        <h3>We did not parse any docs.
+                    |]
+                Just blocks -> do
+                    [whamlet|
+                        <h3>#{modName}
+                    |]
+                    toWidget $ renderBlocks markdownOptions blocks
+
+markdownOptions :: Markdown.Options
+markdownOptions =
+    Markdown.Options
+    { Markdown.sanitize = True
+    , Markdown.allowRawHtml = True
+    , Markdown.preserveHardBreaks = False
+    , Markdown.debug = False
+    }
 
 getModulesR :: Handler Html
 getModulesR = do
