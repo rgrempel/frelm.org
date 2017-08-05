@@ -7,20 +7,17 @@
 
 module Handler.Module where
 
-import AST.Declaration
-import qualified AST.Module as ElmModule
 import Cheapskate.Html
 import qualified Cheapskate.Types as Markdown
+import Data.ElmModule
 import Data.ElmPackage
+import Data.Map.Strict
 import Data.PersistSemVer
 import Data.SemVer (toText)
 import Database.Esqueleto
 import Handler.Common
 import Import.App hiding (Value, groupBy, isNothing, on)
 import qualified Import.App as Prelude
-import Parse.Helpers (iParse)
-import Parse.Module (elmModule)
-import Reporting.Annotation
 import Text.Blaze (toMarkup)
 
 handle404 :: MonadHandler m => m [a] -> m a
@@ -88,15 +85,14 @@ getModuleR repoId tag module_ = do
 
 viewDocs :: Text -> Text -> Widget
 viewDocs modName source = do
-    let parsed = iParse elmModule (unpack source)
-    case parsed of
+    case parseModule source of
         Left err ->
             [whamlet|
                 <h3>Error
                 #{tshow err}
             |]
-        Right (ElmModule.Module _ _ (A _ docs) _ body) -> do
-            case docs of
+        Right elmModule -> do
+            case elmModuleDocs elmModule of
                 Nothing ->
                     [whamlet|
                         <h3>#{modName}
@@ -108,12 +104,12 @@ viewDocs modName source = do
                         <h3>#{modName}
                     |]
                     toWidget $ renderBlocks markdownOptions blocks
-            for_ body $ \decl ->
-                case decl of
-                    DocComment blocks ->
-                        toWidget $ renderBlocks markdownOptions blocks
-                    BodyComment _ -> pure ()
-                    Decl (A _ _) -> pure ()
+            void $
+                flip traverseWithKey (elmModuleDocumented elmModule) $ \key (blocks, _) -> do
+                    [whamlet|
+                        <h3>#{key}
+                    |]
+                    toWidget $ renderBlocks markdownOptions blocks
 
 markdownOptions :: Markdown.Options
 markdownOptions =
