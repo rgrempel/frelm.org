@@ -105,10 +105,8 @@ viewDocs modName source = do
                     |]
                     toWidget $ renderBlocks markdownOptions blocks
             void $
-                flip traverseWithKey (elmModuleDocumented elmModule) $ \key (blocks, _) -> do
-                    [whamlet|
-                        <h3>#{key}
-                    |]
+                flip traverseWithKey (elmModuleDocumented elmModule) $ \key (blocks, decl) -> do
+                    viewDeclaration decl
                     toWidget $ renderBlocks markdownOptions blocks
 
 markdownOptions :: Markdown.Options

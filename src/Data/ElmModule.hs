@@ -1,6 +1,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -17,8 +18,8 @@ import AST.Module
 import AST.V0_16
 import AST.Variable
 import Cheapskate.Types
-import ClassyPrelude hiding (many)
 import qualified Data.Map.Strict as Map
+import Import.App hiding (many)
 import Parse.Helpers (iParse)
 import Parse.Module (elmModule)
 import Reporting.Annotation
@@ -77,3 +78,67 @@ docKeyForDeclaration decl =
             Just ident
         PortAnnotation (Commented _ (LowercaseIdentifier ident) _) _ _ ->
             Just ident
+
+viewDeclaration :: Declaration -> Widget
+viewDeclaration decl =
+    case decl of
+        Definition {} -> pure ()
+        PortDefinition {} -> pure ()
+        Fixity {} -> pure ()
+        TypeAnnotation (ref, _) (_, type_) ->
+            [whamlet|
+                <code>
+                    ^{viewRef ref} : ^{viewType type_}
+            |]
+        Datatype (Commented _ (UppercaseIdentifier ident, _) _) _ -> pure ()
+        TypeAlias _ (Commented _ (UppercaseIdentifier ident, _) _) _ -> pure ()
+        PortAnnotation (Commented _ (LowercaseIdentifier ident) _) _ _ ->
+            pure ()
+
+viewRef :: Ref -> Widget
+viewRef ref =
+    case ref of
+        VarRef mods (LowercaseIdentifier ident) ->
+            [whamlet|
+                $forall (UppercaseIdentifier mod) <- mods
+                    #{mod}.
+                #{ident}
+            |]
+        TagRef mods (UppercaseIdentifier ident) ->
+            [whamlet|
+                $forall (UppercaseIdentifier mod) <- mods
+                    #{mod}
+                .#{ident}
+            |]
+        OpRef (SymbolIdentifier ident) ->
+            [whamlet|
+                (#{ident})
+            |]
+
+viewType :: Type -> Widget
+viewType (A _ type_) =
+    case type_ of
+        UnitType _ -> [whamlet| () |]
+        TypeVariable (LowercaseIdentifier ident) -> [whamlet| #{ident} |]
+        TypeConstruction constructor args ->
+            case constructor of
+                NamedConstructor idents ->
+                    let combinedConstructor =
+                            intercalate "." $
+                            fmap (\(UppercaseIdentifier ident) -> ident) idents
+                    in [whamlet|
+                            #{combinedConstructor}
+                            $forall typeArg <- fmap snd args
+                                ^{viewType typeArg}
+                        |]
+                TupleConstructor _ ->
+                    [whamlet|
+                        (
+                        $forall typeArg <- fmap snd args
+                            ^{viewType typeArg},
+                        )
+                    |]
+        TypeParens (Commented _ t _) -> [whamlet| (^{viewType t}) |]
+        TupleType {} -> [whamlet| #{tshow type_} |]
+        RecordType {} -> [whamlet| #{tshow type_} |]
+        FunctionType {} -> [whamlet| #{tshow type_} |]
