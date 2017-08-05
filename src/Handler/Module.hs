@@ -7,6 +7,7 @@
 
 module Handler.Module where
 
+import AST.Declaration
 import qualified AST.Module as ElmModule
 import Cheapskate.Html
 import qualified Cheapskate.Types as Markdown
@@ -94,17 +95,25 @@ viewDocs modName source = do
                 <h3>Error
                 #{tshow err}
             |]
-        Right (ElmModule.Module _ _ (A _ docs) _ _) ->
+        Right (ElmModule.Module _ _ (A _ docs) _ body) -> do
             case docs of
                 Nothing ->
                     [whamlet|
-                        <h3>We did not parse any docs.
+                        <h3>#{modName}
+                        <div .alert.alert-danger>
+                            We did not parse any module docs.
                     |]
                 Just blocks -> do
                     [whamlet|
                         <h3>#{modName}
                     |]
                     toWidget $ renderBlocks markdownOptions blocks
+            for_ body $ \decl ->
+                case decl of
+                    DocComment blocks ->
+                        toWidget $ renderBlocks markdownOptions blocks
+                    BodyComment _ -> pure ()
+                    Decl (A _ _) -> pure ()
 
 markdownOptions :: Markdown.Options
 markdownOptions =
