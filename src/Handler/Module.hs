@@ -54,6 +54,7 @@ getModuleR repoId tag module_ = do
     defaultLayout $ do
         addStylesheet $ StaticR highlight_js_styles_tomorrow_css
         addStylesheet $ StaticR css_highlight_js_css
+        addStylesheet $ StaticR css_elm_pretty_print_css
         addScript $ StaticR highlight_js_highlight_pack_js
         addScript $ StaticR scripts_init_highlight_js_js
         let repoName = fromMaybe gitUrl $ gitUrlToLibraryName gitUrl

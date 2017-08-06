@@ -33,7 +33,7 @@ data ElmModule = ElmModule
 parseModule :: Text -> Either ParseError ElmModule
 parseModule source = do
     elmFormatModule <- iParse elmModule (unpack source)
-    pure $
+    pure
         ElmModule
         { elmModuleDocs = removeLocation $ docs elmFormatModule
         , elmModuleDocumented = extractDocs $ body elmFormatModule
@@ -47,8 +47,8 @@ extractDocs = go Nothing Map.empty
   where
     go pendingComment accum decls =
         case decls of
-            (DocComment blocks):remaining -> go (Just blocks) accum remaining
-            (Decl (A _ decl)):remaining ->
+            DocComment blocks:remaining -> go (Just blocks) accum remaining
+            Decl (A _ decl):remaining ->
                 let next =
                         case pendingComment of
                             Just comment ->
@@ -82,63 +82,152 @@ docKeyForDeclaration decl =
 viewDeclaration :: Declaration -> Widget
 viewDeclaration decl =
     case decl of
-        Definition {} -> pure ()
-        PortDefinition {} -> pure ()
-        Fixity {} -> pure ()
+        Definition {} ->
+            [whamlet|
+                <div .elm-declaration.elm-definition>
+                    <pre>#{tshow decl}
+            |]
+        PortDefinition {} ->
+            [whamlet|
+                <div .elm-declaration.elm-port-definition>
+                    <pre>#{tshow decl}
+            |]
+        Fixity {} ->
+            [whamlet|
+                <div .elm-declaration.elm-fixity>
+                    <pre>#{tshow decl}
+            |]
         TypeAnnotation (ref, _) (_, type_) ->
             [whamlet|
-                <code>
-                    ^{viewRef ref} : ^{viewType type_}
+                <div .elm-declaration.elm-type-annotation>
+                    ^{viewRef ref}
+                    ^{viewType type_}
             |]
-        Datatype (Commented _ (UppercaseIdentifier ident, _) _) _ -> pure ()
-        TypeAlias _ (Commented _ (UppercaseIdentifier ident, _) _) _ -> pure ()
+        Datatype (Commented _ (UppercaseIdentifier ident, args) _) (OpenCommentedList tags (_, ((UppercaseIdentifier lastTagIdent, lastTagArgs), _))) ->
+            [whamlet|
+                <div .elm-declaration.elm-datatype>
+                    <div .elm-name-with-args>
+                        <div .elm-uppercase-identifier>
+                            #{ident}
+                        $forall (_, LowercaseIdentifier arg) <- args
+                            <div .elm-lowercase-identifier>
+                                #{arg}
+                    <div .elm-datatype-tags>
+                        $forall Commented _ ((UppercaseIdentifier tagIdent, tagArgs), _) _ <- tags
+                            <div .elm-name-with-args>
+                                <div .elm-uppercase-identifier>
+                                    #{tagIdent}
+                                $forall (_, type1) <- tagArgs
+                                    ^{viewType type1}
+                        <div .elm-name-with-args>
+                            <div .elm-uppercase-identifier>
+                                #{lastTagIdent}
+                            $forall (_, type1) <- lastTagArgs
+                                ^{viewType type1}
+        |]
+        TypeAlias _ (Commented _ (UppercaseIdentifier ident, args) _) (_, type_) ->
+            [whamlet|
+                <div .elm-declaration.elm-type-alias>
+                    <div .elm-name-with-args>
+                        <div .elm-uppercase-identifier>
+                            #{ident}
+                        $forall (_, LowercaseIdentifier arg) <- args
+                            <div .elm-lowercase-identifier>
+                                #{arg}
+                    ^{viewType type_}
+            |]
         PortAnnotation (Commented _ (LowercaseIdentifier ident) _) _ _ ->
-            pure ()
+            [whamlet|
+                <div .elm-declaration.elm-port-annotation>
+                    <pre>#{tshow decl}
+            |]
 
 viewRef :: Ref -> Widget
 viewRef ref =
     case ref of
         VarRef mods (LowercaseIdentifier ident) ->
             [whamlet|
-                $forall (UppercaseIdentifier mod) <- mods
-                    #{mod}.
-                #{ident}
+                <div .elm-ref.elm-var-ref>
+                    $forall (UppercaseIdentifier mod) <- mods
+                        <div .elm-uppercase-identifier>
+                            #{mod}
+                    <div .elm-lowercase-identifier>
+                        #{ident}
             |]
         TagRef mods (UppercaseIdentifier ident) ->
             [whamlet|
-                $forall (UppercaseIdentifier mod) <- mods
-                    #{mod}
-                .#{ident}
+                <div .elm-ref.elm-tag-ref>
+                    $forall (UppercaseIdentifier mod) <- mods
+                        <div .elm-uppercase-identifier>
+                            #{mod}
+                    <div .elm-lowercase-identifier>
+                        #{ident}
             |]
         OpRef (SymbolIdentifier ident) ->
             [whamlet|
-                (#{ident})
+                <div .elm-ref.elm-op-ref>
+                    <div .elm-symbol-identifier>
+                        #{ident}
             |]
 
 viewType :: Type -> Widget
 viewType (A _ type_) =
     case type_ of
-        UnitType _ -> [whamlet| () |]
-        TypeVariable (LowercaseIdentifier ident) -> [whamlet| #{ident} |]
+        UnitType _ ->
+            [whamlet|
+                <div .elm-type.elm-unit-type>
+            |]
+        TypeVariable (LowercaseIdentifier ident) ->
+            [whamlet|
+                <div .elm-type.elm-type-variable>
+                    #{ident}
+            |]
         TypeConstruction constructor args ->
             case constructor of
                 NamedConstructor idents ->
-                    let combinedConstructor =
-                            intercalate "." $
-                            fmap (\(UppercaseIdentifier ident) -> ident) idents
-                    in [whamlet|
-                            #{combinedConstructor}
+                    [whamlet|
+                        <div .elm-type.elm-type-construction>
+                            <div .elm-named-constructor>
+                                $forall UppercaseIdentifier ident <- idents
+                                    <div .elm-uppercase-identifier>
+                                        #{ident}
                             $forall typeArg <- fmap snd args
                                 ^{viewType typeArg}
-                        |]
+                    |]
                 TupleConstructor _ ->
                     [whamlet|
-                        (
-                        $forall typeArg <- fmap snd args
-                            ^{viewType typeArg},
-                        )
+                        <div .elm-type.elm-type-construction>
+                            <div .elm-tuple-constructor>
+                                $forall typeArg <- fmap snd args
+                                    ^{viewType typeArg}
                     |]
-        TypeParens (Commented _ t _) -> [whamlet| (^{viewType t}) |]
-        TupleType {} -> [whamlet| #{tshow type_} |]
-        RecordType {} -> [whamlet| #{tshow type_} |]
-        FunctionType {} -> [whamlet| #{tshow type_} |]
+        TypeParens (Commented _ t _) ->
+            [whamlet|
+                <div .elm-type.elm-type-parens>
+                    ^{viewType t}
+            |]
+        TupleType types ->
+            [whamlet|
+                <div .elm-type.elm-tuple-type>
+                    $forall Commented _ (type1, _) _ <- types
+                        ^{viewType type1}
+            |]
+        RecordType base fields _ _ ->
+            [whamlet|
+                <div .elm-type.elm-record-type>
+                    $forall Commented _ (LowercaseIdentifier ident) _ <- base
+                        <div .elm-record-base>
+                            #{ident}
+                    $forall (_, (_, (Pair (LowercaseIdentifier key, _) (_, value) _, _))) <- fields
+                        <div .elm-record-pair>
+                            <div .elm-lowercase-identifier>
+                                #{key}
+                            ^{viewType value}
+            |]
+        FunctionType (type1, _) r _ ->
+            [whamlet|
+                <div .elm-type.elm-function-type>
+                    ^{viewType type1}
+                    $forall (_, _, type2, _) <- r
+                        ^{viewType type2}
+            |]

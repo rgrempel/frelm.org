@@ -1,0 +1,131 @@
+.elm-declaration {
+    display: block;
+    margin-top: 1em;
+    background-color: #EEEEEE;
+    font-family: monospace;
+}
+
+.elm-type-construction * {
+    display: inline;
+}
+
+.elm-type-annotation * {
+    display: inline;
+}
+
+.elm-type-annotation .elm-ref::after {
+    content: " : ";
+}
+
+.elm-type-annotation .elm-type {
+    display: inline;
+}
+
+.elm-type-alias > .elm-name-with-args * {
+    display: inline;
+}
+
+.elm-type-alias > .elm-name-with-args::before {
+    content: "type alias ";
+    color: #FF4136;
+}
+
+.elm-type-alias > .elm-name-with-args::after {
+    content: " = ";
+    color: #FF4136;
+}
+
+.elm-unit-type::after {
+    content: "()";
+}
+
+.elm-uppercase-identifier {
+    color: #3D9970;
+}
+
+.elm-lowercase-identifier {
+    color: #2ECC40;
+}
+
+.elm-record-pair * {
+    display: inline;
+}
+
+.elm-record-pair > .elm-lowercase-identifier::after {
+    content: " : ";
+    color: #FF4136;
+}
+
+.elm-function-type > .elm-type+.elm-type::before {
+    content: " -> ";
+    color: #FF4136;
+}
+
+.elm-type-alias > .elm-type {
+    margin-left: 2em;
+}
+
+.elm-type-construction > .elm-type-construction::before {
+    content: "(";
+}
+
+.elm-type-construction > .elm-type-construction::after {
+    content: ")";
+}
+
+.elm-record-pair:first-child::before {
+    content: "{ "; 
+    color: #FF4136;
+}
+
+.elm-record-pair+.elm-record-pair::before {
+    content: ", ";
+    color: #FF4136;
+}
+
+.elm-record-type::after {
+    content: "}";
+    color: #FF4136;
+}
+
+.elm-tuple-type > .elm-type:first-child::before {
+    content: "(";
+    color: #FF4136;
+}
+
+.elm-tuple-type::after {
+    content: ")";
+    color: #FF4136;
+}
+
+.elm-tuple-type > .elm-type+.elm-type::before {
+    content: ", ";
+    color: #FF4136;
+}
+
+.elm-datatype > .elm-name-with-args * {
+    display: inline;
+}
+
+.elm-datatype > .elm-name-with-args::before {
+    content: "type ";
+    color: #FF4136;
+}
+
+.elm-datatype-tags {
+    margin-left: 2em;
+}
+
+.elm-datatype-tags > .elm-name-with-args * {
+    display: inline;
+}
+
+.elm-datatype-tags > .elm-name-with-args:first-child::before {
+    content: "= ";
+    color: #FF4136;
+}
+
+.elm-datatype-tags > .elm-name-with-args+.elm-name-with-args::before {
+    content: "| ";
+    color: #FF4136;
+}
