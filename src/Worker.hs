@@ -32,6 +32,7 @@ import Database.Persist.Postgresql
 import GHC.IO.Exception (ExitCode(..))
 import Import.Worker hiding ((<>), isNothing, on, readFile)
 import LoadEnv (loadEnv, loadEnvFrom)
+import Network.URI
 import Options.Applicative as OA
 import System.Directory (doesFileExist)
 import System.Environment (getEnv)
@@ -242,10 +243,13 @@ crawl = do
 waitInterval :: NominalDiffTime -> WorkerT ()
 waitInterval diff = liftIO $ threadDelay $ round diff * 1000000
 
+nominalDay :: NominalDiffTime
+nominalDay = 86400
+
 -- | We'll check the official Elm package site for totally new libraries no
 -- more than 4 times per day.
 scrapeInterval :: NominalDiffTime
-scrapeInterval = 86400 / 4
+scrapeInterval = nominalDay / 4
 
 scrapeThread :: WorkerT ()
 scrapeThread =
@@ -478,17 +482,30 @@ checkNewTag reason repo gitDir gitTag = do
                                , PackageCheckReadme P.=. readmeContents
                                ]
                     package <- decodePackageJSON gitDir pc
-                    when (reason == TagFirstSeen) $
-                        for_ package $ \p ->
-                            for_
-                                ((gitUrlToLibraryName . repoGitUrl . entityVal)
-                                     repo) $ \libraryName -> do
-                                let tweetText =
-                                        libraryName <> " " <>
-                                        (toText . gitTagVersion) gitTag <>
-                                        ": " <>
-                                        (packageSummary . entityVal) p
-                                void $ lift $ tweet $ toEllipsis 140 tweetText
+                    when (reason == TagFirstSeen) $ do
+                        now <- liftIO getCurrentTime
+                        when (diffUTCTime now committed < 7 * nominalDay) $
+                            for_ package $ \p ->
+                                for_
+                                    ((gitUrlToLibraryName .
+                                      repoGitUrl . entityVal)
+                                         repo) $ \libraryName -> do
+                                    let tweetText =
+                                            libraryName <> " " <>
+                                            (toText . gitTagVersion) gitTag <>
+                                            ": " <>
+                                            (packageSummary . entityVal) p
+                                    let url =
+                                            "https://package.frelm.org/repo/" <>
+                                            show (fromSqlKey (entityKey repo)) <>
+                                            "/" <>
+                                            unpack (gitTagTag gitTag)
+                                    void $
+                                        lift $
+                                        tweet $
+                                        (toEllipsis (140 - 24) tweetText) <> " " <>
+                                        pack
+                                            (escapeURIString isAllowedInURI url)
 
 safeGetContents :: FilePath -> IO (Maybe Text)
 safeGetContents fromPath =
