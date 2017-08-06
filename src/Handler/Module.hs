@@ -4,16 +4,17 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Handler.Module where
 
 import Cheapskate.Html
-import qualified Cheapskate.Types as Markdown
+import Cheapskate.Types hiding (Entity)
 import Data.ElmModule
 import Data.ElmPackage
-import Data.Map.Strict
 import Data.PersistSemVer
 import Data.SemVer (toText)
+import Data.Sequence
 import Database.Esqueleto
 import Handler.Common
 import Import.App hiding (Value, groupBy, isNothing, on)
@@ -103,19 +104,38 @@ viewDocs modName source = do
                     [whamlet|
                         <h3>#{modName}
                     |]
-                    toWidget $ renderBlocks markdownOptions blocks
-            void $
-                flip traverseWithKey (elmModuleDocumented elmModule) $ \key (blocks, decl) -> do
-                    viewDeclaration decl
-                    toWidget $ renderBlocks markdownOptions blocks
+                    let documented = elmModuleDocumented elmModule
+                    for_ blocks $ \block ->
+                        case block of
+                            Para (viewl -> (Str a) :< (viewl -> (Str b) :< other))
+                                | a == "@"
+                                , b == "docs" ->
+                                    for_ other $ \inline ->
+                                        case inline of
+                                            Str ident
+                                                | ident /= "," ->
+                                                    case lookup
+                                                             (unpack ident)
+                                                             documented of
+                                                        Just (docBlocks, decl) -> do
+                                                            viewDeclaration decl
+                                                            toWidget $
+                                                                renderBlocks
+                                                                    markdownOptions
+                                                                    docBlocks
+                                                        Nothing -> pure ()
+                                            _ -> pure ()
+                            _ ->
+                                toWidget $
+                                renderBlocks markdownOptions (pure block)
 
-markdownOptions :: Markdown.Options
+markdownOptions :: Options
 markdownOptions =
-    Markdown.Options
-    { Markdown.sanitize = True
-    , Markdown.allowRawHtml = True
-    , Markdown.preserveHardBreaks = False
-    , Markdown.debug = False
+    Options
+    { sanitize = True
+    , allowRawHtml = True
+    , preserveHardBreaks = False
+    , debug = False
     }
 
 getModulesR :: Handler Html
