@@ -8,7 +8,6 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# OPTIONS_GHC -ddump-splices -ddump-to-file #-}
 
 module Database.Model where
 
