@@ -1,7 +1,5 @@
 .elm-declaration {
     display: block;
-    margin-top: 1em;
-    background-color: #EEEEEE;
     font-family: monospace;
 }
 
@@ -74,7 +72,7 @@
 }
 
 .elm-record-pair:first-child::before {
-    content: "{ "; 
+    content: "{ ";
     color: #FF4136;
 }
 

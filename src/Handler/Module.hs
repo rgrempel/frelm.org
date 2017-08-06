@@ -8,6 +8,7 @@
 
 module Handler.Module where
 
+import AST.Declaration (Declaration)
 import Cheapskate.Html
 import Cheapskate.Types hiding (Entity)
 import Data.ElmModule
@@ -101,34 +102,39 @@ viewDocs modName source = do
                         <div .alert.alert-danger>
                             We did not parse any module docs.
                     |]
-                Just blocks -> do
-                    [whamlet|
-                        <h3>#{modName}
-                    |]
-                    let documented = elmModuleDocumented elmModule
-                    for_ blocks $ \block ->
-                        case block of
-                            Para (viewl -> (Str a) :< (viewl -> (Str b) :< other))
-                                | a == "@"
-                                , b == "docs" ->
-                                    for_ other $ \inline ->
-                                        case inline of
-                                            Str ident
-                                                | ident /= "," ->
-                                                    case lookup
-                                                             (unpack ident)
-                                                             documented of
-                                                        Just (docBlocks, decl) -> do
-                                                            viewDeclaration decl
-                                                            toWidget $
-                                                                renderBlocks
-                                                                    markdownOptions
-                                                                    docBlocks
-                                                        Nothing -> pure ()
-                                            _ -> pure ()
-                            _ ->
-                                toWidget $
-                                renderBlocks markdownOptions (pure block)
+                Just blocks -> viewDocBlocks modName elmModule blocks
+
+viewDocBlocks :: Text -> ElmModule -> Blocks -> Widget
+viewDocBlocks modName elmModule blocks = do
+    [whamlet|
+        <h3>#{modName}
+    |]
+    let documented = elmModuleDocumented elmModule
+    for_ blocks $ \block ->
+        case block of
+            Para (viewl -> (Str a) :< (viewl -> (Str b) :< other))
+                | a == "@"
+                , b == "docs" ->
+                    for_ other $ \inline ->
+                        case inline of
+                            Str ident
+                                | ident /= "," ->
+                                    case lookup (unpack ident) documented of
+                                        Just (docBlocks, decl) ->
+                                            viewDeclarationDocs decl docBlocks
+                                        Nothing -> pure ()
+                            _ -> pure ()
+            _ -> toWidget $ renderBlocks markdownOptions (pure block)
+
+viewDeclarationDocs :: Declaration -> Blocks -> Widget
+viewDeclarationDocs decl docBlocks = do
+    [whamlet|
+        <div .panel.panel-default>
+            <div .panel-heading>
+                ^{viewDeclaration decl}
+            <div .panel-body>
+                ^{renderBlocks markdownOptions docBlocks}
+    |]
 
 markdownOptions :: Options
 markdownOptions =
