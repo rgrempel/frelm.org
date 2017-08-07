@@ -53,13 +53,6 @@ getRepoR repoId = do
                                                 #{tshow $ utctDay $ repoVersionCommittedAt version}
         |]
 
-handle404 :: MonadHandler m => m [a] -> m a
-handle404 =
-    (=<<) $ \b ->
-        case b of
-            initial:_ -> pure initial
-            [] -> notFound
-
 getRepoVersionR :: RepoId -> Text -> Handler Html
 getRepoVersionR repoId tag = do
     (r, v, pc, p, modules, dependencies) <-

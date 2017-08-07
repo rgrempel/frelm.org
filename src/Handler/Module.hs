@@ -22,13 +22,6 @@ import Import.App hiding (Value, groupBy, isNothing, on)
 import qualified Import.App as Prelude
 import Text.Blaze (toMarkup)
 
-handle404 :: MonadHandler m => m [a] -> m a
-handle404 =
-    (=<<) $ \b ->
-        case b of
-            initial:_ -> pure initial
-            [] -> notFound
-
 getModuleR :: RepoId -> Text -> Text -> Handler Html
 getModuleR repoId tag module_ = do
     (Entity _ pm, Value license, Value gitUrl, Value modName, Value version) <-

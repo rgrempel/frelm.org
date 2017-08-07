@@ -27,6 +27,13 @@ getFaviconR = do
         TypedContent "image/x-icon" $
         toContent $(embedFile "config/favicon.ico")
 
+handle404 :: MonadHandler m => m [a] -> m a
+handle404 =
+    (=<<) $ \b ->
+        case b of
+            initial:_ -> pure initial
+            [] -> notFound
+
 toParams :: Maybe Version -> [(Text, Text)]
 toParams Nothing = [("ev", "all")]
 toParams (Just v) = [("ev", toText v)]
