@@ -98,13 +98,13 @@ viewDeclaration decl =
                     <pre>#{tshow decl}
             |]
         TypeAnnotation (ref, _) (_, type_) ->
-            [whamlet|
+            [whamlet|$newline never
                 <div .elm-declaration.elm-type-annotation>
                     ^{viewRef ref}
                     ^{viewType type_}
             |]
         Datatype (Commented _ (UppercaseIdentifier ident, args) _) (OpenCommentedList tags (_, ((UppercaseIdentifier lastTagIdent, lastTagArgs), _))) ->
-            [whamlet|
+            [whamlet|$newline never
                 <div .elm-declaration.elm-datatype>
                     <div .elm-name-with-args>
                         <div .elm-uppercase-identifier>
@@ -126,7 +126,7 @@ viewDeclaration decl =
                                 ^{viewType type1}
         |]
         TypeAlias _ (Commented _ (UppercaseIdentifier ident, args) _) (_, type_) ->
-            [whamlet|
+            [whamlet|$newline never
                 <div .elm-declaration.elm-type-alias>
                     <div .elm-name-with-args>
                         <div .elm-uppercase-identifier>
@@ -137,7 +137,7 @@ viewDeclaration decl =
                     ^{viewType type_}
             |]
         PortAnnotation (Commented _ (LowercaseIdentifier ident) _) _ _ ->
-            [whamlet|
+            [whamlet|$newline never
                 <div .elm-declaration.elm-port-annotation>
                     <pre>#{tshow decl}
             |]
@@ -146,7 +146,7 @@ viewRef :: Ref -> Widget
 viewRef ref =
     case ref of
         VarRef mods (LowercaseIdentifier ident) ->
-            [whamlet|
+            [whamlet|$newline never
                 <div .elm-ref.elm-var-ref>
                     $forall (UppercaseIdentifier mod) <- mods
                         <div .elm-uppercase-identifier>
@@ -155,7 +155,7 @@ viewRef ref =
                         #{ident}
             |]
         TagRef mods (UppercaseIdentifier ident) ->
-            [whamlet|
+            [whamlet|$newline never
                 <div .elm-ref.elm-tag-ref>
                     $forall (UppercaseIdentifier mod) <- mods
                         <div .elm-uppercase-identifier>
@@ -164,7 +164,7 @@ viewRef ref =
                         #{ident}
             |]
         OpRef (SymbolIdentifier ident) ->
-            [whamlet|
+            [whamlet|$newline never
                 <div .elm-ref.elm-op-ref>
                     <div .elm-symbol-identifier>
                         #{ident}
@@ -174,18 +174,18 @@ viewType :: Type -> Widget
 viewType (A _ type_) =
     case type_ of
         UnitType _ ->
-            [whamlet|
+            [whamlet|$newline never
                 <div .elm-type.elm-unit-type>
             |]
         TypeVariable (LowercaseIdentifier ident) ->
-            [whamlet|
+            [whamlet|$newline never
                 <div .elm-type.elm-type-variable>
                     #{ident}
             |]
         TypeConstruction constructor args ->
             case constructor of
                 NamedConstructor idents ->
-                    [whamlet|
+                    [whamlet|$newline never
                         <div .elm-type.elm-type-construction>
                             <div .elm-named-constructor>
                                 $forall UppercaseIdentifier ident <- idents
@@ -195,25 +195,25 @@ viewType (A _ type_) =
                                 ^{viewType typeArg}
                     |]
                 TupleConstructor _ ->
-                    [whamlet|
+                    [whamlet|$newline never
                         <div .elm-type.elm-type-construction>
                             <div .elm-tuple-constructor>
                                 $forall typeArg <- fmap snd args
                                     ^{viewType typeArg}
                     |]
         TypeParens (Commented _ t _) ->
-            [whamlet|
+            [whamlet|$newline never
                 <div .elm-type.elm-type-parens>
                     ^{viewType t}
             |]
         TupleType types ->
-            [whamlet|
+            [whamlet|$newline never
                 <div .elm-type.elm-tuple-type>
                     $forall Commented _ (type1, _) _ <- types
                         ^{viewType type1}
             |]
         RecordType base fields _ _ ->
-            [whamlet|
+            [whamlet|$newline never
                 <div .elm-type.elm-record-type>
                     $forall Commented _ (LowercaseIdentifier ident) _ <- base
                         <div .elm-record-base>
@@ -225,7 +225,7 @@ viewType (A _ type_) =
                             ^{viewType value}
             |]
         FunctionType (type1, _) r _ ->
-            [whamlet|
+            [whamlet|$newline never
                 <div .elm-type.elm-function-type>
                     ^{viewType type1}
                     $forall (_, _, type2, _) <- r

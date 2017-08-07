@@ -77,12 +77,12 @@ h2 {
     margin-left: 2em;
 }
 
-.elm-type-construction > .elm-type-construction::before {
-    content: "(";
+.elm-named-constructor+*::before {
+    content: " ";
 }
 
-.elm-type-construction > .elm-type-construction::after {
-    content: ")";
+.elm-type-construction+*::before {
+    content: " ";
 }
 
 .elm-record-pair:first-child::before {
@@ -140,4 +140,8 @@ h2 {
 .elm-datatype-tags > .elm-name-with-args+.elm-name-with-args::before {
     content: "| ";
     color: #FF4136;
+}
+
+.elm-name-with-args > .elm-type::before {
+    content: " ";
 }
