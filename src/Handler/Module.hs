@@ -4,18 +4,18 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Handler.Module where
 
 import AST.Declaration (Declaration)
 import Cheapskate.Html
 import Cheapskate.Types hiding (Entity)
+import Control.Monad.Trans.State as ST
 import Data.ElmModule
 import Data.ElmPackage
 import Data.PersistSemVer
 import Data.SemVer (toText)
-import Data.Sequence
+import Data.Sequence as S
 import Database.Esqueleto
 import Handler.Common
 import Import.App hiding (Value, groupBy, isNothing, on)
@@ -87,14 +87,14 @@ getModuleR repoId tag module_ = do
         |]
 
 viewDocs :: Text -> Text -> Widget
-viewDocs modName source = do
+viewDocs modName source =
     case parseModule source of
         Left err ->
             [whamlet|
                 <h3>Error
                 #{tshow err}
             |]
-        Right elmModule -> do
+        Right elmModule ->
             case elmModuleDocs elmModule of
                 Nothing ->
                     [whamlet|
@@ -107,27 +107,72 @@ viewDocs modName source = do
 viewDocBlocks :: Text -> ElmModule -> Blocks -> Widget
 viewDocBlocks modName elmModule blocks = do
     [whamlet|
-        <h3>#{modName}
+        <h1>#{modName}
     |]
-    let documented = elmModuleDocumented elmModule
     for_ blocks $ \block ->
         case block of
-            Para (viewl -> (Str a) :< (viewl -> (Str b) :< other))
-                | a == "@"
-                , b == "docs" ->
-                    for_ other $ \inline ->
-                        case inline of
-                            Str ident
-                                | ident /= "," ->
-                                    case lookup (unpack ident) documented of
-                                        Just (docBlocks, decl) ->
-                                            viewDeclarationDocs decl docBlocks
-                                        Nothing -> pure ()
-                            _ -> pure ()
-            _ -> toWidget $ renderBlocks markdownOptions (pure block)
+            Para inlines
+                -- We need to consider @docs, which won't necessasrily
+                -- appear at the beginning ... could be after a SoftBreak
+                -- or a LineBreak ... and then should be "active" until
+                -- the next, well, we'll see (should figure out what
+                -- SoftBreak and LineBreak actually mean).
+             ->
+                evalStateT
+                    (viewPara (elmModuleDocumented elmModule) inlines)
+                    (Inlines S.empty)
+            _ -> toWidget $ renderBlocks markdownOptions $ pure block
 
+data InlineState
+    = AtDocs
+    | Inlines (Seq Inline)
+
+viewPara ::
+       Map String (Blocks, Declaration)
+    -> Seq Inline
+    -> StateT InlineState (WidgetT App IO) ()
+viewPara documented i = do
+    for_ i $ \inline -> do
+        current <- ST.get
+        case current of
+            AtDocs ->
+                case inline of
+                    Str ident ->
+                        if ident == ","
+                            then pure ()
+                            else case lookup (unpack ident) documented of
+                                     Just (docBlocks, decl) ->
+                                         lift $
+                                         viewDeclarationDocs decl docBlocks
+                                     Nothing -> pure ()
+                    Space -> pure ()
+                    _ -> put $ Inlines S.empty
+            Inlines inlines ->
+                case viewr inlines of
+                    a :> Str b
+                        | b == "@" ->
+                            case inline of
+                                Str c
+                                    | c == "docs" -> do
+                                        unless (S.null a) $
+                                            void $
+                                            lift $
+                                            toWidget $
+                                            renderBlocks markdownOptions $
+                                            pure $ Para a
+                                        put AtDocs
+                                _ -> put $ Inlines $ inlines |> inline
+                    _ -> put $ Inlines $ inlines |> inline
+    remaining <- ST.get
+    case remaining of
+        AtDocs -> pure ()
+        Inlines inlines ->
+            unless (S.null inlines) $
+            toWidget $ renderBlocks markdownOptions $ pure $ Para inlines
+
+-- lift $ toWidget $ renderBlocks markdownOptions $ pure $ Para inlines
 viewDeclarationDocs :: Declaration -> Blocks -> Widget
-viewDeclarationDocs decl docBlocks = do
+viewDeclarationDocs decl docBlocks =
     [whamlet|
         <div .panel.panel-default>
             <div .panel-heading>
