@@ -10,5 +10,5 @@ code.elm {
 
 .declaration {
     font-family: monospace;
-    white-space: pre;
+    white-space: pre-wrap;
 }
