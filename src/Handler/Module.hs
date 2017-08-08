@@ -7,7 +7,6 @@
 
 module Handler.Module where
 
-import AST.Declaration (Declaration)
 import Cheapskate.Html
 import Cheapskate.Types hiding (Entity)
 import Control.Monad.Trans.State as ST
@@ -48,7 +47,6 @@ getModuleR repoId tag module_ = do
     defaultLayout $ do
         addStylesheet $ StaticR highlight_js_styles_tomorrow_css
         addStylesheet $ StaticR css_highlight_js_css
-        addStylesheet $ StaticR css_elm_pretty_print_css
         addScript $ StaticR highlight_js_highlight_pack_js
         addScript $ StaticR scripts_init_highlight_js_js
         let repoName = fromMaybe gitUrl $ gitUrlToLibraryName gitUrl
@@ -74,8 +72,8 @@ getModuleR repoId tag module_ = do
                                 <div ##{docsTab} .tab-pane.active role="tabpanel">
                                     ^{viewDocs modName source}
                                 <div ##{sourceTab} .tab-pane role="tabpanel">
-                                    <pre .elm>
-                                        <code>
+                                    <pre>
+                                        <code .elm>
                                             #{source}
         |]
 
@@ -121,7 +119,7 @@ data InlineState
     | Inlines (Seq Inline)
 
 viewPara ::
-       Map String (Blocks, Declaration)
+       Map String (Blocks, Text)
     -> Seq Inline
     -> StateT InlineState (WidgetT App IO) ()
 viewPara documented i = do
@@ -134,9 +132,9 @@ viewPara documented i = do
                         if ident == ","
                             then pure ()
                             else case lookup (unpack ident) documented of
-                                     Just (docBlocks, decl) ->
+                                     Just (docBlocks, source) ->
                                          lift $
-                                         viewDeclarationDocs decl docBlocks
+                                         viewDeclarationDocs source docBlocks
                                      Nothing -> pure ()
                     Space -> pure ()
                     _ -> put $ Inlines S.empty
@@ -164,12 +162,13 @@ viewPara documented i = do
             toWidget $ renderBlocks markdownOptions $ pure $ Para inlines
 
 -- lift $ toWidget $ renderBlocks markdownOptions $ pure $ Para inlines
-viewDeclarationDocs :: Declaration -> Blocks -> Widget
-viewDeclarationDocs decl docBlocks =
+viewDeclarationDocs :: Text -> Blocks -> Widget
+viewDeclarationDocs source docBlocks =
     [whamlet|
         <div .panel.panel-default>
             <div .panel-heading>
-                ^{viewDeclaration decl}
+                <div .declaration.elm>
+                    #{source}
             <div .panel-body>
                 ^{renderBlocks markdownOptions docBlocks}
     |]

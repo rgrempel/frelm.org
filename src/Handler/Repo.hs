@@ -7,10 +7,8 @@
 
 module Handler.Repo where
 
-import Cheapskate hiding (Entity)
 import Data.ElmPackage
 import Data.PersistSemVer
-import Data.Range
 import Data.SemVer (toText)
 import Database.Esqueleto
 import Handler.Common

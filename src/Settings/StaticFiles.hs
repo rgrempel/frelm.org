@@ -34,5 +34,4 @@ staticFilesList
     , "highlight-js/styles/tomorrow.css"
     , "scripts/init-highlight-js.js"
     , "css/highlight-js.css"
-    , "css/elm-pretty-print.css"
     ]

@@ -1,9 +1,14 @@
 .hljs {
-    background-color: inherit !important;
+    background: inherit !important;
     padding: 0 !important;
 }
 
-pre.elm {
+code.elm {
     margin-left: 2%;
     margin-right: 2%;
+}
+
+.declaration {
+    font-family: monospace;
+    white-space: pre;
 }
