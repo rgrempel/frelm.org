@@ -15,7 +15,6 @@ import Data.SemVer (toText)
 import Database.Esqueleto
 import Handler.Common
 import Import.App hiding (Value, groupBy, on)
-import qualified Import.App as Prelude
 import Text.Blaze (toMarkup)
 
 getRepoVersionR :: RepoId -> Text -> Handler Html
@@ -70,6 +69,7 @@ getRepoVersionR repoId tag = do
                     where_ $ d ^. DependencyRepoVersion ==. val (entityKey v)
                     pure (d, l, depRepo, depVersion)
             pure (r, v, pc, p, modules, dependencies)
+    accordionId <- newIdent
     defaultLayout $ do
         let repoName =
                 fromMaybe (repoGitUrl $ entityVal r) $
@@ -80,28 +80,47 @@ getRepoVersionR repoId tag = do
         [whamlet|
             <div .container>
                 <div .row>
-                    ^{viewPackageCheck pc p}
-                    ^{viewRepoVersion v}
-                    ^{viewModules v modules}
-                    ^{viewDependencies dependencies}
+                    <div .col-lg-6 .col-md-6 .col-sm-6 .col-xs-12>
+                        <div ##{accordionId} .panel-group role="tablist" aria-multiselectable="true">
+                            ^{viewPackageCheck accordionId pc p}
+                            ^{viewRepoVersion accordionId v}
+                            ^{viewDependencies accordionId dependencies}
+                    <div .col-lg-6 .col-md-6 .col-sm-6 .col-xs-12>
+                        ^{viewModules v modules}
                 <div .row>
-                    ^{viewReadme pc}
+                    <div .col-lg-12>
+                        ^{viewReadme pc}
         |]
+        toWidget $
+            [lucius|
+                .panel-heading a[data-toggle=collapse]::after {
+                    font-family: 'Glyphicons Halflings';
+                    content: "\e114";
+                    float: right;
+                    color: grey;
+                }
+
+                .panel-heading a[data-toggle=collapse].collapsed::after {
+                    content: "\e080";
+                }
+            |]
 
 viewDependencies ::
-       [( Entity Dependency
-        , Entity Library
-        , Maybe (Entity Repo)
-        , Maybe (Entity RepoVersion))]
+       Text
+    -> [(Entity Dependency, Entity Library, Maybe (Entity RepoVersion))]
     -> Widget
-viewDependencies deps =
+viewDependencies accordionId deps = do
+    panelHeading <- newIdent
+    panelBody <- newIdent
     [whamlet|
-        <div .col-lg-6 .col-md-6 .col-sm-6 .col-xs-12>
-            <div .panel.panel-default>
-                <div .panel-heading>
-                    <h3 .panel-title>Dependencies
+        <div .panel.panel-default>
+            <div .panel-heading ##{panelHeading} role="tab">
+                <h4 .panel-title>
+                    <a .collapsed role="button" data-toggle="collapse" data-parent="##{accordionId}" href="##{panelBody}" aria-expanded="false" aria-controls="#{panelBody}">
+                        Dependencies
+            <div .panel-collapse.collapse ##{panelBody} role="tabpanel" aria-labelledby="#{panelHeading}">
                 <table .table .table-striped>
-                    $forall (Entity _ d, Entity _ library, _, depRepoVersion) <- deps
+                    $forall (Entity _ d, Entity _ library, depRepoVersion) <- deps
                         <tr>
                             <td .text-right>#{libraryName library}
                             <td>#{showElmPackageRange toText $ dependencyVersion d}
@@ -112,27 +131,46 @@ viewDependencies deps =
                                             #{toText $ repoVersionVersion drv}
     |]
 
+viewReverseDeps :: [(Entity Library, Entity RepoVersion)] -> Widget
+viewReverseDeps deps =
+    [whamlet|
+        <div .panel.panel-default>
+            <div .panel-heading>
+                <h4 .panel-title>Reverse Dependencies
+            <table .table .table-striped>
+                $forall (Entity _ library, Entity _ drv) <- deps
+                    <tr>
+                        <td .text-right>#{libraryName library}
+                        <td>
+                            <a href="@{RepoVersionR (repoVersionRepo drv) (repoVersionTag drv)}">
+                                <span .label.#{labelForVersion $ repoVersionVersion drv}>
+                                    #{toText $ repoVersionVersion drv}
+    |]
+
 viewModules :: Entity RepoVersion -> [Entity Module] -> Widget
 viewModules (Entity _ rv) modules =
     [whamlet|
-        <div .col-lg-6 .col-md-6 .col-sm-6 .col-xs-12>
-            <div .panel.panel-default>
-                <div .panel-heading>
-                    <h3 .panel-title>Modules
-                <ul .list-group>
-                    $forall (Entity _ m) <- modules
-                        <li .list-group-item>
-                            <a href="@{ModuleR (repoVersionRepo rv) (repoVersionTag rv) (moduleName m)}">
-                                #{moduleName m}
+        <div .panel.panel-default>
+            <div .panel-heading>
+                <h4 .panel-title>Modules
+            <ul .list-group>
+                $forall (Entity _ m) <- modules
+                    <li .list-group-item>
+                        <a href="@{ModuleR (repoVersionRepo rv) (repoVersionTag rv) (moduleName m)}">
+                            #{moduleName m}
     |]
 
-viewRepoVersion :: Entity RepoVersion -> Widget
-viewRepoVersion (Entity _ v) =
+viewRepoVersion :: Text -> Entity RepoVersion -> Widget
+viewRepoVersion accordionId (Entity _ v) = do
+    panelHeading <- newIdent
+    panelBody <- newIdent
     [whamlet|
-        <div .col-lg-6 .col-md-6 .col-sm-6 .col-xs-12>
-            <div .panel.panel-default>
-                <div .panel-heading>
-                    <h3 .panel-title>Commit
+        <div .panel.panel-default>
+            <div .panel-heading ##{panelHeading} role="tab">
+                <h4 .panel-title>
+                    <a .collapsed role="button" data-toggle="collapse" data-parent="##{accordionId}" href="##{panelBody}" aria-expanded="false" aria-controls="#{panelBody}">
+                        Commit
+            <div .panel-collapse.collapse ##{panelBody} role="tabpanel" aria-labelledby="#{panelHeading}">
                 <table .table .table-striped>
                     <tr>
                         <td .text-right>Tag
@@ -143,13 +181,17 @@ viewRepoVersion (Entity _ v) =
     |]
 
 viewPackageCheck ::
-       Maybe (Entity PackageCheck) -> Maybe (Entity Package) -> Widget
-viewPackageCheck pc p =
+       Text -> Maybe (Entity PackageCheck) -> Maybe (Entity Package) -> Widget
+viewPackageCheck accordionId pc p = do
+    panelHeading <- newIdent
+    panelBody <- newIdent
     [whamlet|
-        <div .col-lg-6 .col-md-6 .col-sm-6 .col-xs-12>
-            <div .panel.panel-default>
-                <div .panel-heading>
-                    <h3 .panel-title>Package
+        <div .panel.panel-default>
+            <div .panel-heading ##{panelHeading} role="tab">
+                <h4 .panel-title>
+                    <a role="button" data-toggle="collapse" data-parent="##{accordionId}" href="##{panelBody}" aria-expanded="true" aria-controls="#{panelBody}">
+                        Package
+            <div .panel-collapse.collapse.in ##{panelBody} role="tabpanel" aria-labelledby="#{panelHeading}">
                 <div .panel-body>
                     $case pc
                         $of Nothing
@@ -187,12 +229,11 @@ viewReadme pc =
     [whamlet|
         $forall Entity _ packageCheck <- pc
             $forall readme <- packageCheckReadme packageCheck
-                <div .col-lg-12>
-                    <div .panel.panel-default>
-                        <div .panel-heading>
-                            <h3 .panel-title>README
-                        <div .panel-body>
-                            ^{viewMarkdown readme}
+                <div .panel.panel-default>
+                    <div .panel-heading>
+                        <h4 .panel-title>README
+                    <div .panel-body>
+                        ^{viewMarkdown readme}
     |]
 
 viewMarkdown :: Text -> Widget
