@@ -19,7 +19,7 @@ import Text.Blaze (toMarkup)
 
 getRepoVersionR :: RepoId -> Text -> Handler Html
 getRepoVersionR repoId tag = do
-    (r, v, pc, p, modules, dependencies) <-
+    (r, v, pc, p, modules, dependencies, allVersions) <-
         runDB $ do
             (r, v, pc, p) <-
                 handle404 $
@@ -36,6 +36,12 @@ getRepoVersionR repoId tag = do
                         (v ^. RepoVersionRepo ==. val repoId) &&.
                         (v ^. RepoVersionTag ==. val tag)
                     pure (r, v, pc, p)
+            allVersions <-
+                select $
+                from $ \ov -> do
+                    where_ $ ov ^. RepoVersionRepo ==. val repoId
+                    orderBy [asc $ ov ^. RepoVersionVersion]
+                    pure ov
             modules <-
                 select $
                 from $ \(pm `InnerJoin` m) -> do
@@ -67,9 +73,10 @@ getRepoVersionR repoId tag = do
                         (depRepo ?. RepoGitUrl)
                     on $ d ^. DependencyLibrary ==. l ^. LibraryId
                     where_ $ d ^. DependencyRepoVersion ==. val (entityKey v)
-                    pure (d, l, depRepo, depVersion)
-            pure (r, v, pc, p, modules, dependencies)
+                    pure (d, l, depVersion)
+            pure (r, v, pc, p, modules, dependencies, allVersions)
     accordionId <- newIdent
+    versionsId <- newIdent
     defaultLayout $ do
         let repoName =
                 fromMaybe (repoGitUrl $ entityVal r) $
@@ -79,6 +86,15 @@ getRepoVersionR repoId tag = do
             repoName <> " " <> (toText . repoVersionVersion . entityVal) v
         [whamlet|
             <div .container>
+                <div .row .text-center>
+                    <div ##{versionsId} .btn-group role="group" aria-label="Other versions">
+                        $forall Entity rvId rv <- allVersions
+                            $if rvId == entityKey v
+                                <button .btn.btn-sm.btn-primary>
+                                    #{toText $ repoVersionVersion rv}
+                            $else
+                                <a .btn.btn-sm.btn-default href="@{RepoVersionR (repoVersionRepo rv) (repoVersionTag rv)}">
+                                    #{toText $ repoVersionVersion rv}
                 <div .row>
                     <div .col-lg-6 .col-md-6 .col-sm-6 .col-xs-12>
                         <div ##{accordionId} .panel-group role="tablist" aria-multiselectable="true">
@@ -102,6 +118,12 @@ getRepoVersionR repoId tag = do
 
                 .panel-heading a[data-toggle=collapse].collapsed::after {
                     content: "\e080";
+                }
+
+                ##{versionsId} {
+                    margin-left: 5%;
+                    margin-right: 5%;
+                    margin-bottom: 1.5em;
                 }
             |]
 
