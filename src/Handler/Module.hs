@@ -23,9 +23,9 @@ import Text.Blaze (toMarkup)
 
 getModuleR :: RepoId -> Text -> Text -> Handler Html
 getModuleR repoId tag module_ = do
-    ((Entity _ pm, Value license, Value gitUrl, v), allVersions) <-
+    ((Entity _ pm, Value license, Value gitUrl, v), allVersions, allModules) <-
         runDB $ do
-            moduleQuery <-
+            moduleQuery@(_, _, _, Entity rvId _) <-
                 handle404 $
                 select $
                 from $ \(r `InnerJoin` rv `InnerJoin` pm `InnerJoin` m `InnerJoin` p) -> do
@@ -56,10 +56,18 @@ getModuleR repoId tag module_ = do
                                     (pm ^. PackageModuleRepoVersion) ==.
                                     (ov ^. RepoVersionId)
                     pure (ov, moduleExists)
-            pure (moduleQuery, allVersions)
+            allModules <-
+                select $
+                from $ \(pm `InnerJoin` m) -> do
+                    on $ pm ^. PackageModuleModuleId ==. m ^. ModuleId
+                    where_ $ pm ^. PackageModuleRepoVersion ==. val rvId
+                    orderBy [ asc $ m ^. ModuleName ]
+                    pure $ m ^. ModuleName
+            pure (moduleQuery, allVersions, allModules)
     docsTab <- newIdent
     sourceTab <- newIdent
-    versionsId <- newIdent
+    buttonsClass <- newIdent
+    readmeButton <- newIdent
     defaultLayout $ do
         addStylesheet $ StaticR highlight_js_styles_tomorrow_css
         addStylesheet $ StaticR css_highlight_js_css
@@ -73,19 +81,32 @@ getModuleR repoId tag module_ = do
             ")"
         [whamlet|
             <div .container>
-                <div .row .text-center>
-                    <div ##{versionsId} .btn-group role="group" aria-label="Other versions">
-                        $forall (Entity rvId rv, Value hasModule) <- allVersions
-                            $if rvId == entityKey v
-                                <button .btn.btn-sm.btn-primary>
-                                    #{toText $ repoVersionVersion rv}
-                            $else
-                                $if hasModule
-                                    <a .btn.btn-sm.btn-default href="@{ModuleR (repoVersionRepo rv) (repoVersionTag rv) module_}">
+                <div .row>
+                    <div .col-lg-12.text-center>
+                        <div .btn-group.#{buttonsClass} role="group" aria-label="Other versions">
+                            $forall (Entity rvId rv, Value hasModule) <- allVersions
+                                $if rvId == entityKey v
+                                    <button .btn.btn-sm.btn-primary>
                                         #{toText $ repoVersionVersion rv}
                                 $else
-                                    <a .btn.btn-sm.btn-default href="@{RepoVersionR (repoVersionRepo rv) (repoVersionTag rv)}">
-                                        #{toText $ repoVersionVersion rv}
+                                    $if hasModule
+                                        <a .btn.btn-sm.btn-default href="@{ModuleR (repoVersionRepo rv) (repoVersionTag rv) module_}">
+                                            #{toText $ repoVersionVersion rv}
+                                    $else
+                                        <a .btn.btn-sm.btn-default href="@{RepoVersionR (repoVersionRepo rv) (repoVersionTag rv)}">
+                                            #{toText $ repoVersionVersion rv}
+                <div .row>
+                    <div .col-lg-12.text-center>
+                        <div .btn-group.#{buttonsClass} role="group" aria-label="Other Modules">
+                            <a ##{readmeButton} .btn.btn-sm.btn-default href="@{RepoVersionR repoId tag}">
+                                README
+                            $forall Value otherModule <- allModules
+                                $if module_ == otherModule
+                                    <button .btn.btn-sm.btn-primary>
+                                        #{otherModule}
+                                $else
+                                    <a .btn.btn-sm.btn-default href="@{ModuleR repoId tag otherModule}">
+                                        #{otherModule}
                 $maybe source <- packageModuleSource pm
                     <div .row>
                         <div .col-lg-12>
@@ -109,10 +130,14 @@ getModuleR repoId tag module_ = do
         |]
         toWidget $
             [lucius|
-                ##{versionsId} {
+                .#{buttonsClass} {
                     margin-left: 5%;
                     margin-right: 5%;
                     margin-bottom: 1.5em;
+                }
+
+                ##{readmeButton} {
+                    margin-right: 1em;
                 }
             |]
 
