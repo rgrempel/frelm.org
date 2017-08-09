@@ -23,27 +23,43 @@ import Text.Blaze (toMarkup)
 
 getModuleR :: RepoId -> Text -> Text -> Handler Html
 getModuleR repoId tag module_ = do
-    (Entity _ pm, Value license, Value gitUrl, Value modName, Value version) <-
-        runDB $
-        handle404 $
-        select $
-        from $ \(r `InnerJoin` rv `InnerJoin` pm `InnerJoin` m `InnerJoin` p) -> do
-            on $ pm ^. PackageModuleRepoVersion ==. p ^. PackageRepoVersion
-            on $ pm ^. PackageModuleModuleId ==. m ^. ModuleId
-            on $ pm ^. PackageModuleRepoVersion ==. rv ^. RepoVersionId
-            on $ rv ^. RepoVersionRepo ==. r ^. RepoId
-            where_ $
-                (rv ^. RepoVersionRepo ==. val repoId) &&.
-                (rv ^. RepoVersionTag ==. val tag) &&.
-                (m ^. ModuleName ==. val module_)
-            pure
-                ( pm
-                , p ^. PackageLicense
-                , r ^. RepoGitUrl
-                , m ^. ModuleName
-                , rv ^. RepoVersionVersion)
+    ((Entity _ pm, Value license, Value gitUrl, v), allVersions) <-
+        runDB $ do
+            moduleQuery <-
+                handle404 $
+                select $
+                from $ \(r `InnerJoin` rv `InnerJoin` pm `InnerJoin` m `InnerJoin` p) -> do
+                    on $
+                        pm ^. PackageModuleRepoVersion ==. p ^.
+                        PackageRepoVersion
+                    on $ pm ^. PackageModuleModuleId ==. m ^. ModuleId
+                    on $ pm ^. PackageModuleRepoVersion ==. rv ^. RepoVersionId
+                    on $ rv ^. RepoVersionRepo ==. r ^. RepoId
+                    where_ $
+                        (rv ^. RepoVersionRepo ==. val repoId) &&.
+                        (rv ^. RepoVersionTag ==. val tag) &&.
+                        (m ^. ModuleName ==. val module_)
+                    pure (pm, p ^. PackageLicense, r ^. RepoGitUrl, rv)
+            allVersions <-
+                select $
+                from $ \ov -> do
+                    where_ $ ov ^. RepoVersionRepo ==. val repoId
+                    orderBy [asc $ ov ^. RepoVersionVersion]
+                    let moduleExists =
+                            exists $
+                            from $ \(pm `InnerJoin` m) -> do
+                                on $
+                                    pm ^. PackageModuleModuleId ==. m ^.
+                                    ModuleId
+                                where_ $
+                                    m ^. ModuleName ==. val module_ &&.
+                                    (pm ^. PackageModuleRepoVersion) ==.
+                                    (ov ^. RepoVersionId)
+                    pure (ov, moduleExists)
+            pure (moduleQuery, allVersions)
     docsTab <- newIdent
     sourceTab <- newIdent
+    versionsId <- newIdent
     defaultLayout $ do
         addStylesheet $ StaticR highlight_js_styles_tomorrow_css
         addStylesheet $ StaticR css_highlight_js_css
@@ -52,9 +68,24 @@ getModuleR repoId tag module_ = do
         let repoName = fromMaybe gitUrl $ gitUrlToLibraryName gitUrl
         setTitle $
             toMarkup $
-            modName <> " (" <> repoName <> " " <> toText version <> ")"
+            module_ <> " (" <> repoName <> " " <>
+            toText (repoVersionVersion $ entityVal v) <>
+            ")"
         [whamlet|
             <div .container>
+                <div .row .text-center>
+                    <div ##{versionsId} .btn-group role="group" aria-label="Other versions">
+                        $forall (Entity rvId rv, Value hasModule) <- allVersions
+                            $if rvId == entityKey v
+                                <button .btn.btn-sm.btn-primary>
+                                    #{toText $ repoVersionVersion rv}
+                            $else
+                                $if hasModule
+                                    <a .btn.btn-sm.btn-default href="@{ModuleR (repoVersionRepo rv) (repoVersionTag rv) module_}">
+                                        #{toText $ repoVersionVersion rv}
+                                $else
+                                    <a .btn.btn-sm.btn-default href="@{RepoVersionR (repoVersionRepo rv) (repoVersionTag rv)}">
+                                        #{toText $ repoVersionVersion rv}
                 $maybe source <- packageModuleSource pm
                     <div .row>
                         <div .col-lg-12>
@@ -70,12 +101,20 @@ getModuleR repoId tag module_ = do
                                         #{license}
                             <div .tab-content>
                                 <div ##{docsTab} .tab-pane.active role="tabpanel">
-                                    ^{viewDocs modName source}
+                                    ^{viewDocs module_ source}
                                 <div ##{sourceTab} .tab-pane role="tabpanel">
                                     <pre>
                                         <code .elm>
                                             #{source}
         |]
+        toWidget $
+            [lucius|
+                ##{versionsId} {
+                    margin-left: 5%;
+                    margin-right: 5%;
+                    margin-bottom: 1.5em;
+                }
+            |]
 
 viewDocs :: Text -> Text -> Widget
 viewDocs modName source =
