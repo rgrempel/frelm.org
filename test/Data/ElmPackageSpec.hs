@@ -8,15 +8,16 @@ module Data.ElmPackageSpec (spec) where
 import Data.Aeson
 import Data.ElmPackage
 import qualified Data.Map
-import Data.SemVer (version)
+import Data.Range
+import Data.SemVer
 import NeatInterpolation (text)
 import TestImport
 
 
 spec :: Spec
-spec = withApp $ do
-    describe "FromJSON" $ do
-        it "parses a typical example" $ do
+spec = withApp $
+    describe "FromJSON" $
+        it "parses a typical example" $
             assertEq "gets expected result" (Right typicalExampleParsed) $
                 eitherDecodeStrict typicalExampleJSON
 
@@ -29,23 +30,25 @@ typicalExampleParsed =
         , elmPackageRepository = "https://github.com/Gizra/elm-dictlist.git"
         , elmPackageLicense = "MIT"
         , elmPackageModules = ["DictList"]
+        , elmPackageSourceDirectories = ["src"]
+        , elmPackageNativeModules = False
         , elmPackageDependencies =
             Data.Map.fromList
                 [ ( "elm-community/list-extra"
-                  , VersionBounds
-                        (version 5 0 0 [] [])
-                        (version 6 0 0 [] [])
+                  , Range
+                        (Inclusive (version 5 0 0 [] []))
+                        (Exclusive (version 6 0 0 [] []))
                   )
                 , ( "elm-lang/core"
-                  , VersionBounds
-                        (version 5 0 0 [] [])
-                        (version 6 0 0 [] [])
+                  , Range
+                        (Inclusive (version 5 0 0 [] []))
+                        (Exclusive (version 6 0 0 [] []))
                   )
                 ]
         , elmPackageElmVersion =
-            VersionBounds
-                (version 0 18 0 [] [])
-                (version 0 19 0 [] [])
+            Just $ Range
+                (Inclusive (version 0 18 0 [] []))
+                (Exclusive (version 0 19 0 [] []))
         }
 
 

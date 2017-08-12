@@ -11,7 +11,7 @@ import ClassyPrelude         as X hiding (delete, deleteBy, Handler)
 import Database.Persist      as X hiding (get)
 import Database.Persist.Sql  (SqlPersistM, SqlBackend, runSqlPersistMPool, rawExecute, rawSql, unSingle, connEscapeName)
 import Foundation            as X
-import Model                 as X
+import Database.Model        as X
 import Test.Hspec            as X
 import Text.Shakespeare.Text (st)
 import Yesod.Default.Config2 (useEnv, loadYamlSettings)
@@ -73,7 +73,7 @@ getTables = do
 -- being set in test-settings.yaml, which enables dummy authentication in
 -- Foundation.hs
 authenticateAs :: Entity User -> YesodExample App ()
-authenticateAs (Entity _ u) = do
+authenticateAs (Entity _ u) =
     request $ do
         setMethod "POST"
         addPostParam "ident" $ userIdent u
@@ -81,7 +81,7 @@ authenticateAs (Entity _ u) = do
 
 -- | Create a user.
 createUser :: Text -> YesodExample App (Entity User)
-createUser ident = do
+createUser ident =
     runDB $ insertEntity User
         { userIdent = ident
         , userEmail = "dummy@email.com"
