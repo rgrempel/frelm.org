@@ -26,6 +26,9 @@ getHomeR = do
                             Elm has a very fine official website dedicated to
                             discovering Elm packages, at
                             <a href="http://package.elm-lang.org">http://package.elm-lang.org.
+                            There is also a site at
+                            <a href="https://libraries.io/elm">https://libraries.io/elm
+                            that has some nice features (e.g. an analysis of dependencies).
                         <p>
                             So, what's different here?
                         <ul>
@@ -33,15 +36,24 @@ getHomeR = do
                                 If you're a package author, you don't have to
                                 tell us about new versions. We'll look
                                 periodically (about once a day) and see if there
-                                are any.
+                                are any. (But you can add your package from our
+                                <a href="@{ReposR}">repos page
+                                if we've missed it.)
                             <li>
                                 If you're looking for packages, we keep track
                                 of a few things that the official Elm web-site
                                 doesn't (at least, at time of writing). For
                                 instance, we can show you the packages that
-                                have been most recently updated. We also have a
-                                list of all the Elm modules exposed by the
-                                packages we know about.
+                                have been most
+                                <a href="@{RecentR}">recently updated.
+                                (The
+                                <a href="https://libraries.io/elm">libraries.io
+                                site does this too).
+
+                                We also have a list of all the
+                                <a href="@{ModulesR}">Elm modules
+                                exposed by the packages we know about, which you
+                                might find handy if want to avoid name clashes.
                         <p>
                             That being said, the
                             <a href="http://package.elm-lang.org">official package website
