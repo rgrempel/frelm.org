@@ -33,6 +33,15 @@ justValueInRange value rangeExpr =
             let valueAsRange = val $ Range (Inclusive v) (Inclusive v)
             in unsafeSqlBinOp " <@ " valueAsRange rangeExpr
 
+baseValueInRange ::
+       PersistField (Range a)
+    => a
+    -> SqlExpr (Value (Range a))
+    -> SqlExpr (Value Bool)
+baseValueInRange value rangeExpr =
+    let valueAsRange = val $ Range (Inclusive value) (Inclusive value)
+    in unsafeSqlBinOp " <@ " valueAsRange rangeExpr
+
 data Bound a
     = Inclusive a
     | Exclusive a
