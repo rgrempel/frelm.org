@@ -711,7 +711,7 @@ scrape = do
                     ScrapeResult
                     { scrapeResultRan = ran
                     , scrapeResultGot = Nothing
-                    , scrapeResultError = Just $ tshow err
+                    , scrapeResultError = Just err
                     }
             Right packages -> do
                 insert_

@@ -10,6 +10,7 @@ module Data.OfficialPackage
     ) where
 
 import ClassyPrelude
+import Control.Exception.Safe as EX
 import Data.Aeson
 import Data.PersistSemVer ()
 import Data.SemVer
@@ -28,7 +29,12 @@ instance FromJSON OfficialPackage where
             v .: "versions"
 
 fetchOfficialPackages ::
-       (MonadIO m, MonadThrow m) => m (Either JSONException [OfficialPackage])
+       (MonadIO m, MonadThrow m, MonadCatch m)
+    => m (Either Text [OfficialPackage])
 fetchOfficialPackages =
-    fmap getResponseBody $
-    parseRequest "http://package.elm-lang.org/all-packages" >>= httpJSONEither
+    fmap
+        (Right . getResponseBody)
+        (parseRequest "http://package.elm-lang.org/all-packages" >>= httpJSON) `EX.catches`
+    [ EX.Handler (\(ex :: JSONException) -> pure $ Left $ tshow ex)
+    , EX.Handler (\(ex :: HttpException) -> pure $ Left $ tshow ex)
+    ]
